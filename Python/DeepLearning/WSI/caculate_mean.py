@@ -1,8 +1,8 @@
 # coding=utf-8
-'''
+"""
     caculate the mean of data
     author: Zengrui Zhao
-'''
+"""
 import numpy as np
 import os
 from skimage import io
@@ -10,8 +10,9 @@ from scipy import misc
 import cv2
 import sys
 
+
 def calculateWithoutSubFolder(path):
-    temp = np.zeros((224, 224, 3))
+    temp = np.zeros((144, 144, 3))
     img_number = 0
     for img in os.listdir(path):
         print img
@@ -23,7 +24,7 @@ def calculateWithoutSubFolder(path):
 
 
 def calculateWithSubFolder(path):
-    temp = np.zeros((224, 224, 3))
+    temp = np.zeros((144, 144, 3))
     img_number = 0
     for sub in os.listdir(path):
         for img in os.listdir(os.path.join(path, sub)):
@@ -40,7 +41,7 @@ def calculateWithSubFolder(path):
 
 
 if __name__ == '__main__':
-    mean = calculateWithSubFolder(path = '/home/zzr/Data/Skin/data/All_2')
-    # mean = calculateWithoutSubFolder(path = '/home/zzr/Data/ISIC/densenet/val'):
+    # mean = calculateWithSubFolder(path='/media/zzr/SW/Skin_xml/WSI_20/WSI/Train_test/train')
+    mean = calculateWithoutSubFolder(path='/media/zzr/Data/skin_xml/original_new/2018-08-09 153008')
 
-    np.save('/home/zzr/Data/Skin/script_all/mean.npy', mean)
+    np.save('/media/zzr/Data/skin_xml/original_new/2018-08-09 153008.npy', mean)

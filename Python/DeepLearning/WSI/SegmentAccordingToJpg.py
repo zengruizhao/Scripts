@@ -3,11 +3,7 @@
     segment whole slide img according to saved img
     author: Zengrui Zhao 2018.8.30
 """
-
-caffe_root = '/home/zzr/caffe/'
 import sys
-
-sys.path.insert(0, caffe_root + 'python')
 import caffe
 import numpy as np
 import time
@@ -15,23 +11,27 @@ import os
 from skimage import io
 import warnings
 import math
+caffe_root = '/home/zzr/caffe/'
+sys.path.insert(0, caffe_root + 'python')
 warnings.filterwarnings('ignore')
-import matplotlib.pyplot as plt
 
 
-All_start = time.time()
-deploy = '/home/zzr/Data/Skin/script_all/deploy.prototxt'
-mean = '/home/zzr/Data/Skin/script_all/mean.npy'
-model = '/home/zzr/Data/Skin/script_all/model/_iter_10000.caffemodel'
+deploy = '/home/zzr/Data/Skin/script_all/resnet/ResNet-50-deploy_deploy.prototxt'
+mean = '/home/zzr/Data/Skin/script_all/train_mean_lmdb.npy'
+model = '/home/zzr/Data/Skin/script_all/resnet/model/_iter_100000.caffemodel'
 save_file = '/media/zzr/Data/skin_xml/mask_result/'
-labels = ['背景', '表皮', '真皮', '脂肪', '毛囊', '汗腺']
+# labels = ['背景', '表皮', '真皮', '脂肪', '毛囊', '汗腺']
+labels = ['表皮', '真皮', '脂肪', '汗腺', '背景', '毛囊']
+stride = 36
+img_path = '/media/zzr/Data/skin_xml/original_new/2018-07-30 161045'
 
 
 def caffe_init():
     caffe.set_mode_gpu()
     caffe.set_device(0)
 
-    mean_data = np.transpose(np.load(mean), (2, 0, 1))
+    # mean_data = np.transpose(np.load(mean), (2, 0, 1))
+    mean_data = np.load(mean)
     # =====================================
     net = caffe.Net(deploy, model, caffe.TEST)
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
@@ -60,11 +60,10 @@ def get_xy(img_file):
 def main():
     start = time.time()
     transformer, net, batchsize = caffe_init()
-    img_path = '/media/zzr/Data/skin_xml/original/fore'
     img_file = os.listdir(img_path)
-    stride = 56
+    print 'There are %d images' % (len(img_file))
     min_x, min_y, max_x, max_y = get_xy(img_file)
-    mask = np.zeros(np.array([max_y, max_x]) / stride + 1)
+    mask = np.ones(np.array([max_y, max_x]) / stride + 1) * 4
     epoch = math.ceil(len(img_file) / batchsize) + 1
     x, y = [], []
     temp = 0
@@ -79,15 +78,19 @@ def main():
             y.append(int(img.split('.')[0].split('_')[1]))
 
         net.forward()
-        for index, _ in enumerate(img_file_epoch):
+        for index, img in enumerate(img_file_epoch):
             prob = net.blobs['prob'].data[index].flatten()
             order = prob.argmax()
+            if order == 5:  # 毛囊和背景易混淆
+                file = io.imread(os.path.join(img_path, img))
+                if np.mean(file) > 200:
+                    order = 4
             mask[y[index] / stride, x[index] / stride] = order
-            print str(y[index]), '_', str(x[index]), 'the class is:', labels[order], np.max(prob)
+            # print str(y[index]), '_', str(x[index]), 'the class is:', labels[order], np.max(prob)
 
         x, y = [], []
 
-    np.save(save_file + 'Result.npy', mask)
+    np.save(save_file + 'Result_new_lowlevel.npy', mask)
     print time.time() - start
 
 

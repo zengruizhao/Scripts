@@ -1,8 +1,8 @@
 # coding=utf-8
-'''
+"""
     split train and test set randomly
     author: Zengrui Zhao
-'''
+"""
 
 import numpy as np
 import os
