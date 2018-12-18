@@ -1,0 +1,54 @@
+Get the current version from the SVN repository
+-----------------------------------------------
+(1) If you are checking out svm_mex for the first time:
+	(a) Make a local directory wherever you want to save SVM files (we will call this [LOCAL_DIR]).
+	(b) Perform SVN "checkout" from 'svn+ssh://[YOUR_USERNAME]@lcib.rutgers.edu/data/repos/svm_mex/trunk' 
+		to [LOCAL_DIR].
+(2) If you are updating an existing copy of svm_mex:
+	(a) Navigate to existing [LOCAL_DIR].
+	(b) Perform SVN "update".
+
+
+Quick Start Guide
+-----------------
+(1) Add the 'svm_mex' folder to your Matlab path, i.e. run 'addpath(genpath([YOUR_SVM_FOLDER_PATH]))'
+(2) Scale your dataset using the function 'svm_scale'.
+(3) Call 'svm_main.m'.  Type 'help svm_main' in Matlab for a detailed description of input and output 
+	arguments. 
+
+
+List of m-files included in repository
+--------------------------------------
+(1) svm_main.m : Performs basic SVM training and testing.  This function provides sufficient 
+	functionality for most users.
+(2) svm_scale.m : Scales dataset for SVM classification.  The use of this function on the entire dataset 
+	prior to calling 'svm_main' is HIGHLY RECOMMENDED for most users.
+(3) svm_roc.m : Uses probability estimates from 'svm_main' to generate ROC curve.
+
+
+Editing SVM source files
+------------------------
+If you edit the MEX C++ files located in the 'src' folder, recompile the binaries via the following steps:
+(1) In Matlab, change working directory to the 'src' folder.
+(2) At the Matlab command line, enter the following commands:
+	>> make clean
+	>> make
+
+
+Known Issues
+------------
+These are known issues that need to be fixed at some point.  They shouldn't cause any problems in normal 
+	day-to-day use of the SVM code.
+(1) 'predictsvm' does not return the actual distances from testing data to the decision hyperplane.  
+	Probability estimates are provided as a surrogate and can be thresholded to provide an ROC curve if needed.
+(2) Although training is not performed when 'params.svm_model' is provided as an input to 'svm_main.m', 
+	training data and labels are still required inputs.
+
+
+To Do
+-----
+If you want to modify or add a file to this project, contact Scott or Ajay for more information.  Here 
+	are some tasks to get the ball rolling:
+(1) Modify 'svmpredict' to output distances from testing samples to the hyperplane.
+(2) Include additional scaling options in 'svm_scale.m' so that users can select which type of scaling 
+	(if any) they wish to use.

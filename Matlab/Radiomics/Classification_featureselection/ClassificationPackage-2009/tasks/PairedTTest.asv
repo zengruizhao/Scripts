@@ -1,0 +1,53 @@
+function [output] = PairedTTest(data1, labels1, data2, labels2, kernel)
+%% This cell is the paired ttest function
+% load data & labels
+% load /data2/home/abasavan/for_scott/LI_autoseg_graphfeats_3D;
+% load /data2/home/abasavan/for_scott/LI_manseg_graphfeats_3D;
+
+% check inputs
+M = size(data1,1);
+if size(data2,1) ~= M || size(labels1,1) ~= M || size(labels2,1) ~= M
+    error('Number of samples do not match!');
+end
+
+
+% run cross-validation on autoseg
+autoseg_stats = CrossValidate('nFold_SVM',data1,labels1,1,3,kernel,100);
+[meanacc stdacc] = parseClassificationStats(autoseg_stats)
+save('/data2/home/abasavan/for_scott/LI_graphfeats_autoseg_stats','autoseg_stats');
+
+Subsets = cell(1,length(autoseg_stats));
+for i=1:length(autoseg_stats)
+    Subsets{i} = autoseg_stats{i}.subsets;
+end
+
+% run cross-validation on manseg using subsets from autoseg
+manseg_stats = CrossValidate('nFold_SVM',eigVec_gfeats_manseg,labels,1,3,kernel,100,Subsets);
+[meanacc stdacc] = parseClassificationStats(manseg_stats)
+save('/data2/home/abasavan/for_scott/LI_graphfeats_manseg_stats','manseg_stats');
+
+% paired ttest
+if ispc
+    load('\\khayyam\abasavan\for_scott\LI_graphfeats_autoseg_stats');
+    load('\\khayyam\abasavan\for_scott\LI_graphfeats_manseg_stats.mat');
+elseif isunix
+    load('/data2/home/abasavan/for_scott/LI_graphfeats_autoseg_stats');
+    load('/data2/home/abasavan/for_scott/LI_graphfeats_manseg_stats');
+end
+
+a=[]; b=[];
+for i=1:length(autoseg_stats)
+    a = [a autoseg_stats{i}.acc];
+    b = [b manseg_stats{i}.acc];
+end
+
+[h,p,ci] = ttest2(a(1:25),b(1:25),.05,'both','unequal')
+
+%% 
+
+% stats = CrossValidate('nFold_SVM',eigVec_graphfeats,labels,1,3,'linear',100);
+% [meanacc stdacc] = parseClassificationStats(stats)
+
+% temp = apply_Dimred(eigVec_graphfeats, 'asdf', labels, 10);
+stats = CrossValidate('nFold_SVM',gfeats,labels(:),1,3,'rbf',100);
+[meanacc stdacc] = parseClassificationStats(stats)

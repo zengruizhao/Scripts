@@ -1,0 +1,248 @@
+function PowerStudy(data, labels,T1,T2,n,tra_in,tes_in)
+% Ajay Basavanhally
+% Implemented as found in Mukherjee, et al., Estimating Dataset Size
+% Requirements for Classifying DNA Microarray Data, 2003.
+% This is for Satish's pixelwise data! It uses cells!!
+
+M = size(data,1);
+labels = labels(:);
+% trainFlag = true;
+
+%check inputs and use default values as needed
+if nargin < 7
+    trainFlag = true;
+    trainPoolFlag = true;
+elseif
+
+if nargin < 7 || isempty(tes_in) || nargin < 6 || isempty(tra_in)
+    trainFlag = true;
+else
+    trainFlag = false;
+end
+if nargin < 5 || isempty(n)
+    n = round(linspace(10,M-10,10)); % automatically select training set sizes
+end
+if nargin < 4 || isempty(T2)
+    T2 = 50;
+    fprintf('T2 set to %i iterations by default.\n',T2);
+end
+if nargin < 3 || isempty(T1)
+    T1 = 50;
+    fprintf('T1 set to %i iterations by default.\n',T1);
+end
+
+if size(labels,1) ~= M
+    error('Features and labels are different sizes!');
+end
+% if M < 10 % THIS SHOULD NOT BE IMPORTANT FOR PIXELWISE DATA
+%     error('At least 10 samples are required');
+% end
+
+%%% Part A: Subsampling Test %%%
+%n = round(linspace(10,M-10,10)); % select training set sizes
+
+if trainFlag
+    % isolate training (2/3) and testing (1/3) subsets
+    rstream = RandStream.create('mt19937ar','Seed',100*sum(clock));
+    temp = randperm(rstream,length(labels)); temp2 = round(3*length(labels)/4);
+    training_pool = temp(1:temp2);
+    testing_pool = temp(temp2+1:end);
+    fprintf('\nTraining pool: '); disp(training_pool);
+    fprintf('\nTesting pool: '); disp(testing_pool);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+end
+
+if trainFlag
+    % create T1 random subsets for each of the n training set sizes
+    fprintf('\nGenerating %g subsets each for %g training set sizes...',T1,length(n));
+    training = cell(T1,length(n)); testing = cell(T1,length(n));
+    for i=1:length(n)
+        for j=1:T1
+            temp = randperm(length(training_pool));
+            training{j,i} = training_pool(temp(1:n(i)));
+            testing{j,i} = testing_pool;
+        end
+    end
+else
+    fprintf('\nLoading %g subsets each for %g training set sizes...\n',size(tra_in,1),size(tra_in,2));
+    training = tra_in;
+    testing = tes_in;
+end
+fprintf('done\n');
+
+%%%% DEBUG %%%%
+save('debug_traintest.mat','training','testing','data','labels');
+% quit;
+%%%%%%%%%%%%%%%%
+
+% run classification for all T1 x n subsets
+for j=1:T1
+    mkdir(num2str(j));
+    [~, ~] = unix(['chmod 777 ' num2str(j)]);
+end
+
+tic
+err_subsampling = zeros(T1,length(n));
+for i=1:length(n)
+    fprintf('Running T1=%g classification trials with %g training samples...',T1,n(i));
+    for j=1:T1 % ANB: this used to be a parfor; maybe switch back if we can figure out the problem
+        cd(num2str(j));
+
+%         curTrainSet = data(training{j,i},:);
+%         curTestSet = data(testing{j,i},:);
+%         curTrainLabel = labels(training{j,i});
+%         curTestLabel = labels(testing{j,i});
+        tra = training{j,i};
+        tes = testing{j,i};
+        
+        curTrainSet = []; curTestSet = []; curTrainLabel = []; curTestLabel = [];
+        for aa=1:length(tra)
+            curTrainSet = [curTrainSet; data{tra(aa)}];
+            curTrainLabel = [curTrainLabel; labels{tra(aa)}];
+        end
+        
+        for aa=1:length(tes)
+            curTestSet = [curTestSet; data{tes(aa)}];
+            curTestLabel = [curTestLabel; labels{tes(aa)}];
+        end
+        
+        stats = Classify('QDA',curTrainSet,curTestSet,curTrainLabel,curTestLabel);
+        
+        err_subsampling(j,i) = (stats.fp + stats.fn)/(stats.tp + stats.tn + stats.fp + stats.fn);
+        
+        cd('..');
+    end
+    fprintf('done\n');
+end
+toc
+
+for j=1:T1
+    rmdir(num2str(j),'s');
+end
+
+
+% calculate mean, 25th-tile, 75-tile for each n (over all T1 subsets)
+err_mean = mean(err_subsampling);
+temp = prctile(err_subsampling,[25 75]);
+err_25 = temp(1,:);
+err_75 = temp(2,:);
+
+%%%% DEBUG %%%%
+save('debug_true_errs.mat','err_mean','err_25','err_75','err_subsampling');
+% quit;
+%%%%%%%%%%%%%%%%
+
+%%% Part B: Permuation Test %%%
+% create randomized training labels (T1 x n x T2)
+rand_training_labels = cell(T1,length(n),T2);
+fprintf('\nGenerating T2=%g randomized subsets for each of T1=%g trials for each of %g training set sizes...\n',T2,T1,length(n));
+for i=1:length(n)
+    for j=1:T1
+        tra = training{j,i}; temp_labs = [];
+        for aa=1:length(tra)
+            temp_labs = [temp_labs; labels{tra(aa)}];
+        end
+        
+        for k=1:T2
+            temp = randi(2,length(temp_labs),1);
+            rand_training_labels{j,i,k} = 2*temp - 3;
+        end
+    end
+end
+
+% run classification for all T1 x n x T2 subsets
+tic
+for k=1:T2
+    mkdir(num2str(k)); % create directories used by parfor
+    [~, ~] = unix(['chmod 777 ' num2str(i)]);
+end
+
+err_permutation = zeros(T1,length(n),T2);
+for i=1:length(n)
+    fprintf('Running T1xT2=%g classification trials with %g training samples...\n',T1*T2,n(i));
+    for j=1:T1
+%         curTrainSet = data(training{j,i},:);
+%         curTestSet = data(testing{j,i},:);
+%         curTestLabel = labels(testing{j,i});
+
+        tra = training{j,i};
+        tes = testing{j,i};
+
+        curTrainSet = []; curTestSet = []; curTestLabel = [];
+        for aa=1:length(tra)
+            curTrainSet = [curTrainSet; data{tra(aa)}];
+        end
+        
+        for aa=1:length(tes)
+            curTestSet = [curTestSet; data{tes(aa)}];
+            curTestLabel = [curTestLabel; labels{tes(aa)}];
+        end
+
+        parfor k=1:T2
+            cd(num2str(k));
+            
+            curTrainLabel = rand_training_labels{j,i,k};
+            stats = Classify('QDA',curTrainSet,curTestSet,curTrainLabel,curTestLabel);
+            err_permutation(j,i,k) = (stats.fp + stats.fn)/(stats.tp + stats.tn + stats.fp + stats.fn);
+            
+            cd('..');
+        end
+    end
+end
+
+for k=1:T2
+    rmdir(num2str(k),'s'); % delete directories used by parfor
+end
+toc
+
+%%%% DEBUG %%%%
+save('debug_err_permute.mat','err_permutation');
+% quit;
+%%%%%%%%%%%%%%%%
+
+%%% Part C: Significance Calculation %%%
+% Calculate P values for all 3 metrics (i.e. mean, 25th, 75th).
+% This is fraction of random classifiers w/ lower error rates than actual.
+P_mean = zeros(size(n)); P_25 = zeros(size(n)); P_75 = zeros(size(n));
+for i=1:length(n)
+    RandErrs = err_permutation(:,i,:);
+    
+    P_mean(i) = numel(find(RandErrs < err_mean(i)))/numel(RandErrs);
+    P_25(i) = numel(find(RandErrs < err_25(i)))/numel(RandErrs);
+    P_75(i) = numel(find(RandErrs < err_75(i)))/numel(RandErrs);
+end
+
+% for each metric, find smallest n that achieves significance
+sig_level = .05;
+valid_mean = find(P_mean < sig_level, 1 );
+valid_25 = find(P_25 < sig_level, 1 );
+valid_75 = find(P_75 < sig_level, 1 );
+
+
+%%%%%%%%%%%%%%%%%% Learning Curves %%%%%%%%%%%%%%%%%%%
+% only select valid n values and their associated error rates
+% actual.valid_mean = valid_mean;
+% actual.valid_25 = valid_25;
+% actual.valid_75 = valid_75;
+actual.n_mean = n(valid_mean:end);
+actual.err_mean = err_mean(valid_mean:end);
+actual.n_25 = n(valid_25:end);
+actual.err_25 = err_25(valid_25:end);
+actual.n_75 = n(valid_75:end);
+actual.err_75 = err_75(valid_75:end);
+
+%%%%% debug %%%%%
+% save('my_data.mat','actual');
+%%%%% /debug %%%%
+
+%%%%% debug %%%%%
+% load('my_data.mat');
+%%%%% /debug %%%%
+
+% save actual valid error rates and extrapolated curves
+extrap.n = 2:100000;
+extrap.err_mean = InvSqrFit(actual.n_mean, actual.err_mean, extrap.n);
+extrap.err_25 = InvSqrFit(actual.n_25, actual.err_25, extrap.n);
+extrap.err_75 = InvSqrFit(actual.n_75, actual.err_75, extrap.n);
+
+save('PowerStudy.mat','actual','extrap');

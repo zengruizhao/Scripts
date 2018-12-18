@@ -1,0 +1,99 @@
+
+C4.5 [release 8] decision tree generator	Thu Jul 30 16:03:28 2009
+----------------------------------------
+
+    Options:
+	File stem <Prostatecancertest>
+	Trees evaluated on unseen cases
+
+Read 9 cases (2 attributes) from Prostatecancertest.data
+
+Decision Tree:
+
+1_feature <= 31960.2 : -1 (2.0)
+1_feature > 31960.2 : 1 (7.0/1.0)
+
+
+Tree saved
+
+
+Evaluation on training data (9 items):
+
+	 Before Pruning           After Pruning
+	----------------   ---------------------------
+	Size      Errors   Size      Errors   Estimate
+
+
+
+ ITEM   4
+class                   -1 weight 0.14
+class                    1 weight 0.86
+	   3    1(11.1%)      3    1(11.1%)    (37.4%)   <<
+
+ IPAError 11.111111 IPATree 3
+
+ YannisError   1
+
+Evaluation on test data (21 items):
+
+	 Before Pruning           After Pruning
+	----------------   ---------------------------
+	Size      Errors   Size      Errors   Estimate
+
+
+
+ ITEM   0
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM   3
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM   4
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM   9
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM  10
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM  12
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM  13
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM  15
+class                   -1 weight 1.00
+class                    1 weight 0.00
+
+
+ ITEM  16
+class                   -1 weight 1.00
+class                    1 weight 0.00
+	   3    9(42.9%)      3    9(42.9%)    (37.4%)   <<
+
+ IPAError 42.857143 IPATree 3
+
+ YannisError   9
+
+
+	  (a)  (b)	<-classified as
+	 ---- ----
+	    7     	(a): class -1
+	    9    5	(b): class 1
+
