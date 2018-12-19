@@ -1,18 +1,16 @@
 # coding=utf-8
-"""
-author: Jiawei Xie
-"""
 import os
 import scipy.io as sio
 from time import time
 from lxml import etree
 from collections import OrderedDict
+import numpy as np
 
 
 class XMLWritter:
-    def __init__(self, data_path, save_path, skew, skip_record=5):
+    def __init__(self, save_path, data, skew, skip_record=5):
     # skip_record:隔几个点存一个坐标
-        self.data_path = data_path
+        self.data = data
         self.save_path = save_path
         self.data_list = []
         self.skew_pixles_40x = skew
@@ -31,18 +29,10 @@ class XMLWritter:
                                                       ("Area", "0.1"), ("LengthMicrons", "0.1"), ("AreaMicrons", "0"),
                                                       ("Text", ""), ("NegativeROA", "0"), ("InputRegionId", "0"),
                                                       ("Analyze", "1"), ("DisplayId", "1")])
-        self.get_data_list()
-
-    def get_data_list(self):
-        import os
-        for root, _, fnames in os.walk(self.data_path):
-            for fname in fnames:
-                if fname.endswith('.mat'):
-                    self.data_list.append(os.path.join(root, fname))
 
     def create_annotation_attribute(self, node, id='1', name='', read_only='0',
                                     name_read_only='0', line_color_read_only='0',
-                                    incremental='0', type='4', line_color='65280',
+                                    incremental='0', type='4', line_color='808080',
                                     visible='1', selected='1', markup_image_path='', macro_name=''):
         self.annotation_attribute_name_dict["Id"] = id
         self.annotation_attribute_name_dict["Name"] = name
@@ -102,8 +92,8 @@ class XMLWritter:
         :return: node after created
         """
         node = etree.SubElement(node, 'Vertex')
-        node.set('X', str(data[1] + self.skew_pixles_40x))
-        node.set('Y', str(data[0] + self.skew_pixles_40x))
+        node.set('X', str(data[1]*4 + self.skew_pixles_40x))
+        node.set('Y', str(data[0]*4 + self.skew_pixles_40x))
         node.set('Z', '0')
         return node
 
@@ -114,45 +104,41 @@ class XMLWritter:
             self.create_region_attribute(Region, id=str(ind + 1))
             etree.SubElement(Region, 'Attributes')
             node = etree.SubElement(Region, 'Vertices')
-            vertex = one_region[0]
+            vertex = one_region
             for i, one_vertex in enumerate(vertex):
                 if (i + self.skip_record / 2 + 1) % self.skip_record == 0:
                     self.create_vertex(node, one_vertex)
             self.create_vertex(node, vertex[2])
 
     def main_writter(self):
-        for index, one in enumerate(self.data_list):
-            st_t = time()
-            name = one.split('/')[-1].split('_')[0]
-            data = sio.loadmat(one)['Region'][0]
-            #################################################
-            Annotations = etree.Element('Annotations')
-            Annotations.set("MicronsPerPixel", "0.441600")
+        #################################################
+        Annotations = etree.Element('Annotations')
+        Annotations.set("MicronsPerPixel", "0.441600")
 
-            Annotation = etree.SubElement(Annotations, 'Annotation')
-            Annotation = self.create_annotation_attribute(Annotation)
+        Annotation = etree.SubElement(Annotations, 'Annotation')
+        Annotation = self.create_annotation_attribute(Annotation)
 
-            etree.SubElement(Annotation, 'Attributes')
+        etree.SubElement(Annotation, 'Attributes')
 
-            Regions = etree.SubElement(Annotation, 'Regions')
+        Regions = etree.SubElement(Annotation, 'Regions')
 
-            RegionAttributeHeaders = etree.SubElement(Regions, 'RegionAttributeHeaders')
-            self.create_attribute_header(RegionAttributeHeaders)
-            self.write_vertices(Regions, data)
+        RegionAttributeHeaders = etree.SubElement(Regions, 'RegionAttributeHeaders')
+        self.create_attribute_header(RegionAttributeHeaders)
+        self.write_vertices(Regions, self.data)
 
-            etree.SubElement(Annotation, 'Plots')
-            #################################################
+        etree.SubElement(Annotation, 'Plots')
+        #################################################
 
-            tree = etree.ElementTree(Annotations)
-            tree.write(os.path.join(self.save_path, name + '.xml'), pretty_print=True)
-            print('Finished {}, {}/{}, time: {}s'.format(name+'.xml', (index+1), len(self.data_list), (time()-st_t)))
+        tree = etree.ElementTree(Annotations)
+        tree.write(os.path.join(self.save_path, 'temp' + '.xml'), pretty_print=True)
+        # print('Finished {}, {}/{}, time: {}s'.format(name+'.xml', (index+1), len(self.data_list), (time()-st_t)))
 
 
 def main():
-    data_path = '/mnt/Darwin/Cholangiocarcinoma/map/boundary_mat/'
-    save_path = '/mnt/Darwin/Cholangiocarcinoma/map/xml_show/'
+    save_path = '/media/zzr/Data/skin_xml/mask_result/tif/'
 
-    writter = XMLWritter(data_path, save_path, skew=200)
+    data = np.load('contours.npy')
+    writter = XMLWritter(save_path, data, skew=0)
     writter.main_writter()
 
 

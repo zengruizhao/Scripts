@@ -22,13 +22,14 @@ class SemanticXml:
         self.name = name
         self.patch = (256, 256)
         self.thumbnail_mask = thumbnail_mask
+        self.label = label
         self.result = np.zeros_like(thumbnail_mask)
-        self.thumbnail_preprocess(label=label)
+        self.thumbnail_preprocess()
 
-    def thumbnail_preprocess(self, label):
+    def thumbnail_preprocess(self):
         # mrophology operation
         thumbnail_mask_like = np.zeros_like(self.thumbnail_mask)
-        thumbnail_mask_like[np.where(self.thumbnail_mask == label)] = 1
+        thumbnail_mask_like[np.where(self.thumbnail_mask == self.label)] = 1
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         image_open = cv2.morphologyEx(np.array(thumbnail_mask_like), cv2.MORPH_OPEN, kernel)
         image_close = cv2.morphologyEx(image_open, cv2.MORPH_CLOSE, kernel)
