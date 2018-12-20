@@ -107,4 +107,4 @@ def convert_data(x_list, y_list, label_list):
     x_list = np.expand_dims(x_list, -1)
     x = np.asarray(x_list)
     y = np.asarray(y_list)
-    return x, [y, y, y, y]  # multi outputs
+    return x, [y, y, y]  # multi outputs
