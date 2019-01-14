@@ -6,9 +6,9 @@
 import numpy as np
 import os
 
-path = '/media/zzr/SW/Skin_xml/WSI_new/Train_test'
+path = '/media/zzr/Data/skin_xml/cell/data/augpatch'
 for sub in os.listdir(path):
-    with open('/media/zzr/SW/Skin_xml/WSI_new/Train_test/' + str(sub) + '.txt', 'a') as file:
+    with open('/media/zzr/Data/skin_xml/cell/data/augpatch/' + str(sub) + '.txt', 'a') as file:
         label_all = os.listdir(os.path.join(path, sub))
         for label in label_all:
             img_all = os.listdir(os.path.join(os.path.join(path, sub), label))

@@ -1,11 +1,11 @@
 from keras.engine import Input, Model
-from keras.layers import Conv2D, Conv3D, MaxPooling3D, UpSampling3D, Softmax, BatchNormalization, \
-    Conv3DTranspose, GlobalAveragePooling3D, GlobalMaxPooling3D, Cropping3D, Dense
+from keras.layers import Conv3D, MaxPooling3D, UpSampling3D, Softmax, BatchNormalization, \
+    Conv3DTranspose, GlobalAveragePooling3D, GlobalMaxPooling3D, Cropping3D, Dense, AveragePooling3D
 from keras.layers.core import Activation, Dropout, RepeatVector, Lambda
 from keras.optimizers import Adam, Adadelta, SGD
 from config import config
 from keras import backend as K
-from keras.regularizers import l2
+from keras.regularizers import l2, l1_l2
 from keras.layers import add, multiply, Dense, LSTM, maximum, average, Reshape
 from coord import CoordinateChannel3D
 from group_norm import GroupNormalization
@@ -14,143 +14,11 @@ import numpy as np
 from keras.layers.merge import concatenate
 from keras.layers.advanced_activations import PReLU, ReLU
 from keras.layers.convolutional import ZeroPadding3D
+from keras.constraints import max_norm
 import tensorflow as tf
 
 l2_ratio = 1e-4
-
-
-def unet_model_3d(shape=None, classes=2):
-    inputs = Input(shape)
-    conv1 = Conv3D(32, (3, 3, 3), activation='relu', padding='same')(inputs)
-    print "conv1 shape:", conv1.shape
-    conv1 = Conv3D(32, (3, 3, 3), activation='relu', padding='same')(conv1)
-    print "conv1 shape:", conv1.shape
-    pool1 = MaxPooling3D(pool_size=(2, 2, 2))(conv1)
-    print "pool1 shape:",pool1.shape
-
-    conv2 = Conv3D(64, (3, 3, 3), activation='relu', padding='same')(pool1)
-    print "conv2 shape:", conv2.shape
-    conv2 = Conv3D(64, (3, 3, 3), activation='relu', padding='same')(conv2)
-    print "conv2 shape:", conv2.shape
-    pool2 = MaxPooling3D(pool_size=(2, 2, 2))(conv2)
-    print "pool2 shape:", pool2.shape
-
-    conv3 = Conv3D(128, (3, 3, 3), activation='relu', padding='same')(pool2)
-    print "conv3 shape:", conv3.shape
-    conv3 = Conv3D(128, (3, 3, 3), activation='relu', padding='same')(conv3)
-    print "conv3 shape:", conv3.shape
-    pool3 = MaxPooling3D(pool_size=(2, 2, 2))(conv3)
-    print "pool3 shape:", pool3.shape
-
-    conv4 = Conv3D(256, (3, 3, 3), activation='relu', padding='same')(pool3)
-    print "conv4 shape:", conv4.shape
-    conv4 = Conv3D(256, (3, 3, 3), activation='relu', padding='same')(conv4)
-    print "conv4 shape:", conv4.shape
-    pool4 = MaxPooling3D(pool_size=(2, 2, 2))(conv4)
-    print "pool4 shape:", pool4.shape
-
-    conv5 = Conv3D(512, (3, 3, 3), activation='relu', padding='same')(pool4)
-    print "conv5 shape:", conv5.shape
-    conv5 = Conv3D(512, (3, 3, 3), activation='relu', padding='same')(conv5)
-    print "conv5 shape:", conv5.shape
-
-    # up6 = merge([UpSampling3D(size=(2, 2, 2))(conv5), conv4], mode='concat', concat_axis=-1)
-    up6 = concatenate([UpSampling3D(size=(2, 2, 2))(conv5), conv4], axis=-1)
-    conv6 = Conv3D(256, (3, 3, 3), activation='relu', padding='same')(up6)
-    conv6 = Conv3D(256, (3, 3, 3), activation='relu', padding='same')(conv6)
-
-    # up7 = merge([UpSampling3D(size=(2, 2, 2))(conv6), conv3], mode='concat', concat_axis=-1)
-    up7 = concatenate([UpSampling3D(size=(2, 2, 2))(conv6), conv3], axis=-1)
-    conv7 = Conv3D(128, (3, 3, 3), activation='relu', padding='same')(up7)
-    conv7 = Conv3D(128, (3, 3, 3), activation='relu', padding='same')(conv7)
-
-    # up8 = merge([UpSampling3D(size=(2, 2, 2))(conv7), conv2], mode='concat', concat_axis=-1)
-    up8 = concatenate([UpSampling3D(size=(2, 2, 2))(conv7), conv2], axis=-1)
-    conv8 = Conv3D(64, (3, 3, 3), activation='relu', padding='same')(up8)
-    conv8 = Conv3D(64, (3, 3, 3), activation='relu', padding='same')(conv8)
-
-    # up9 = merge([UpSampling3D(size=(2, 2, 2))(conv8), conv1], mode='concat', concat_axis=-1)
-    up9 = concatenate([UpSampling3D(size=(2, 2, 2))(conv8), conv1], axis=-1)
-    conv9 = Conv3D(32, (3, 3, 3), activation='relu', padding='same')(up9)
-    conv9 = Conv3D(32, (3, 3, 3), activation='relu', padding='same')(conv9)
-
-    conv10 = Conv3D(classes, (1, 1, 1), activation='relu')(conv9)
-    act = Conv3D(1, 1, activation='sigmoid')(conv10)
-    # act = Activation('sigmoid')(conv10)
-    model = Model(inputs=inputs, outputs=act)
-
-    model.compile(optimizer=Adam(lr=config["initial_learning_rate"]), loss=dice_coef_loss, metrics=[dice_coef])
-    # model.compile(optimizer=Adadelta(), loss=dice_coef_loss, metrics=[dice_coef])
-
-    return model
-
-
-def new_unet_model_3d(input_shape, downsize_filters_factor=1, pool_size=(2, 2, 2), n_labels=1,
-                      initial_learning_rate=0.00001, deconvolution=False):
-    """
-    Builds the 3D UNet Keras model.
-    :param input_shape: Shape of the input data (n_chanels, x_size, y_size, z_size). 
-    :param downsize_filters_factor: Factor to which to reduce the number of filters. Making this value larger will
-    reduce the amount of memory the model will need during training.
-    :param pool_size: Pool size for the max pooling operations.
-    :param n_labels: Number of binary labels that the model is learning.
-    :param initial_learning_rate: Initial learning rate for the model. This will be decayed during training.
-    :param deconvolution: If set to True, will use transpose convolution(deconvolution) instead of upsamping. This
-    increases the amount memory required during training.
-    :return: Untrained 3D UNet Model
-    """
-    inputs = Input(input_shape)
-    conv1 = Conv3D(int(32/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(inputs)
-    conv1 = Conv3D(int(64/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv1)
-    pool1 = MaxPooling3D(pool_size=pool_size)(conv1)
-
-    conv2 = Conv3D(int(64/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(pool1)
-    conv2 = Conv3D(int(128/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv2)
-    pool2 = MaxPooling3D(pool_size=pool_size)(conv2)
-
-    conv3 = Conv3D(int(128/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(pool2)
-    conv3 = Conv3D(int(256/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv3)
-    pool3 = MaxPooling3D(pool_size=pool_size)(conv3)
-
-    conv4 = Conv3D(int(256/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(pool3)
-    conv4 = Conv3D(int(512/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv4)
-
-    up5 = get_upconv(pool_size=pool_size, deconvolution=deconvolution, depth=2,
-                     nb_filters=int(512/downsize_filters_factor), image_shape=input_shape[-3:])(conv4)
-    up5 = concatenate([up5, conv3], axis=1)
-    conv5 = Conv3D(int(256/downsize_filters_factor), (3, 3, 3), activation='relu', padding='same')(up5)
-    conv5 = Conv3D(int(256/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv5)
-
-    up6 = get_upconv(pool_size=pool_size, deconvolution=deconvolution, depth=1,
-                     nb_filters=int(256/downsize_filters_factor), image_shape=input_shape[-3:])(conv5)
-    up6 = concatenate([up6, conv2], axis=1)
-    conv6 = Conv3D(int(128/downsize_filters_factor), (3, 3, 3), activation='relu', padding='same')(up6)
-    conv6 = Conv3D(int(128/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv6)
-
-    up7 = get_upconv(pool_size=pool_size, deconvolution=deconvolution, depth=0,
-                     nb_filters=int(128/downsize_filters_factor), image_shape=input_shape[-3:])(conv6)
-    up7 = concatenate([up7, conv1], axis=1)
-    conv7 = Conv3D(int(64/downsize_filters_factor), (3, 3, 3), activation='relu', padding='same')(up7)
-    conv7 = Conv3D(int(64/downsize_filters_factor), (3, 3, 3), activation='relu',
-                   padding='same')(conv7)
-
-    conv8 = Conv3D(n_labels, (1, 1, 1))(conv7)
-    act = Activation('sigmoid')(conv8)
-    model = Model(inputs=inputs, outputs=act)
-
-    model.compile(optimizer=Adam(lr=initial_learning_rate), loss=dice_coef_loss, metrics=[dice_coef])
-
-    return model
+dropout_ratio = 0.5
 
 
 def compute_level_output_shape(filters, depth, pool_size, image_shape):
@@ -1539,16 +1407,18 @@ def deeplabv2(shape, classes=2):
     return model
 
 
-def Nest_Net(shape, classes=1, deep_supervision=True):
+def Nest_Net1(shape, classes=1, deep_supervision=True):
     # nb_filter = [8, 16, 32, 64, 128]
-    nb_filter = [16, 64, 128, 256]
+    nb_filter = [16, 64, 256, 512]
     img_input = Input(shape, name='main_input')
     conv1_1 = standard_unit(img_input, stage='11', nb_filter=nb_filter[0])
     print 'conv1_1 shape:', conv1_1.shape
     pool1 = MaxPooling3D(2, strides=2, name='pool1')(conv1_1)
+    pool1 = Dropout(dropout_ratio)(pool1)
 
     conv2_1 = standard_unit(pool1, stage='21', nb_filter=nb_filter[1])
     pool2 = MaxPooling3D(2, strides=2, name='pool2')(conv2_1)
+    pool2 = Dropout(dropout_ratio)(pool2)
 
     up1_2 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up12', padding='same')(conv2_1)
     conv1_2 = concatenate([up1_2, conv1_1], name='merge12')
@@ -1556,6 +1426,7 @@ def Nest_Net(shape, classes=1, deep_supervision=True):
 
     conv3_1 = standard_unit(pool2, stage='31', nb_filter=nb_filter[2])
     pool3 = MaxPooling3D(2, strides=2, name='pool3')(conv3_1)
+    pool3 = Dropout(dropout_ratio)(pool3)
 
     up2_2 = Conv3DTranspose(nb_filter[1], 2, strides=2, name='up22', padding='same')(conv3_1)
     conv2_2 = concatenate([up2_2, conv2_1], name='merge22')
@@ -1579,12 +1450,9 @@ def Nest_Net(shape, classes=1, deep_supervision=True):
     conv1_4 = concatenate([up1_4, conv1_1, conv1_3, conv1_2], name='merge14')
     conv1_4 = standard_unit(conv1_4, stage='14', nb_filter=nb_filter[0])
 
-    nestnet_output_1 = Conv3D(classes, 1, activation='sigmoid', name='output_1',
-                              kernel_initializer='he_normal', padding='same')(conv1_2)
-    nestnet_output_2 = Conv3D(classes, 1, activation='sigmoid', name='output_2',
-                              kernel_initializer='he_normal', padding='same')(conv1_3)
-    nestnet_output_3 = Conv3D(classes, 1, activation='sigmoid', name='output_3',
-                              kernel_initializer='he_normal', padding='same')(conv1_4)
+    nestnet_output_1 = Conv3D(classes, 1, activation='sigmoid', name='output_1', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_2)
+    nestnet_output_2 = Conv3D(classes, 1, activation='sigmoid', name='output_2', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_3)
+    nestnet_output_3 = Conv3D(classes, 1, activation='sigmoid', name='output_3', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_4)
     print 'nestnet_output_1 shape:', nestnet_output_1.shape
     print 'nestnet_output_2 shape:', nestnet_output_2.shape
     print 'nestnet_output_3 shape:', nestnet_output_3.shape
@@ -1603,6 +1471,133 @@ def Nest_Net(shape, classes=1, deep_supervision=True):
     model.compile(optimizer=Adam(lr=config["initial_learning_rate"]),
                   loss=[dice_coef_loss, dice_coef_loss, dice_coef_loss],
                   metrics={'output_1': dice_coef, 'output_2': dice_coef, 'output_3': dice_coef})
+    return model
+
+
+def Nest_Net_2(shape, classes=1, deep_supervision=False):
+    # nb_filter = [8, 16, 32, 64, 128]
+    nb_filter = [16, 64, 256, 512]
+    img_input = Input(shape, name='main_input')
+    conv1_1 = standard_unit(img_input, stage='11', nb_filter=nb_filter[0])
+    print 'conv1_1 shape:', conv1_1.shape
+    pool1 = MaxPooling3D(2, strides=2, name='pool1')(conv1_1)
+    pool1 = Dropout(dropout_ratio)(pool1)
+
+    conv2_1 = standard_unit(pool1, stage='21', nb_filter=nb_filter[1])
+    pool2 = MaxPooling3D(2, strides=2, name='pool2')(conv2_1)
+    pool2 = Dropout(dropout_ratio)(pool2)
+
+    up1_2 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up12', padding='same')(conv2_1)
+    conv1_2 = concatenate([up1_2, conv1_1], name='merge12')
+    conv1_2 = standard_unit(conv1_2, stage='12', nb_filter=nb_filter[0])
+
+    conv3_1 = standard_unit(pool2, stage='31', nb_filter=nb_filter[2])
+    pool3 = MaxPooling3D(2, strides=2, name='pool3')(conv3_1)
+    pool3 = Dropout(dropout_ratio)(pool3)
+
+    up2_2 = Conv3DTranspose(nb_filter[1], 2, strides=2, name='up22', padding='same')(conv3_1)
+    conv2_2 = concatenate([up2_2, conv2_1], name='merge22')
+    conv2_2 = standard_unit(conv2_2, stage='22', nb_filter=nb_filter[1])
+
+    up1_3 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up13', padding='same')(conv2_2)
+    conv1_3 = concatenate([up1_3, conv1_1, conv1_2], name='merge13')
+    conv1_3 = standard_unit(conv1_3, stage='13', nb_filter=nb_filter[0])
+
+    conv4_1 = standard_unit(pool3, stage='41', nb_filter=nb_filter[3])
+
+    up3_2 = Conv3DTranspose(nb_filter[2], 2, strides=2, name='up32', padding='same')(conv4_1)
+    conv3_2 = concatenate([up3_2, conv3_1], name='merge32')
+    conv3_2 = standard_unit(conv3_2, stage='32', nb_filter=nb_filter[2])
+
+    up2_3 = Conv3DTranspose(nb_filter[1], 2, strides=2, name='up23', padding='same')(conv3_2)
+    conv2_3 = concatenate([up2_3, conv2_1, conv2_2], name='merge23')
+    conv2_3 = standard_unit(conv2_3, stage='23', nb_filter=nb_filter[1])
+
+    up1_4 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up14', padding='same')(conv2_3)
+    conv1_4 = concatenate([up1_4, conv1_1, conv1_3, conv1_2], name='merge14')
+    conv1_4 = standard_unit(conv1_4, stage='14', nb_filter=nb_filter[0])
+
+    nestnet_output_1 = Conv3D(classes, 1, activation='sigmoid', name='output_1', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_2)
+    nestnet_output_2 = Conv3D(classes, 1, activation='sigmoid', name='output_2', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_3)
+    nestnet_output_3 = Conv3D(classes, 1, activation='sigmoid', name='output_3', padding='same', kernel_regularizer=l2(l2_ratio))(conv1_4)
+    print 'nestnet_output_1 shape:', nestnet_output_1.shape
+    print 'nestnet_output_2 shape:', nestnet_output_2.shape
+    print 'nestnet_output_3 shape:', nestnet_output_3.shape
+    # nestnet_output = concatenate([nestnet_output_1, nestnet_output_2, nestnet_output_3])
+    # nestnet_output = concatenate([conv1_2, conv1_3, conv1_4])
+    # nestnet_output = Conv3D(classes, 1, activation='sigmoid', name='output',
+    #                         kernel_initializer='he_normal')(nestnet_output)
+
+    if deep_supervision:
+        model = Model(input=img_input, output=[nestnet_output_1,
+                                               nestnet_output_2,
+                                               nestnet_output_3])
+    else:
+        model = Model(input=img_input, output=[nestnet_output_3])
+
+    model.compile(optimizer=Adam(lr=config["initial_learning_rate"]),
+                  loss=[dice_coef_loss],
+                  metrics={'output_3': dice_coef})
+    return model
+
+
+def Nest_Net(shape, classes=2):
+    nb_filter = [16, 64, 256, 512]
+    # nb_filter = [16, 32, 64, 128]
+    img_input = Input(shape, name='main_input')
+    conv1_1 = standard_unit(img_input, stage='11', nb_filter=nb_filter[0])
+    pool1 = MaxPooling3D(2, strides=2, name='pool1')(conv1_1)
+    pool1 = Dropout(dropout_ratio)(pool1)
+
+    conv2_1 = standard_unit(pool1, stage='21', nb_filter=nb_filter[1])
+    pool2 = MaxPooling3D(2, strides=2, name='pool2')(conv2_1)
+    pool2 = Dropout(dropout_ratio)(pool2)
+
+    up1_2 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up12', padding='same')(conv2_1)
+    conv1_2 = concatenate([up1_2, conv1_1], name='merge12')
+    conv1_2 = standard_unit(conv1_2, stage='12', nb_filter=nb_filter[0])    # output1
+    #
+    conv3_1 = standard_unit(pool2, stage='31', nb_filter=nb_filter[2])
+    pool3 = MaxPooling3D(2, strides=2, name='pool3')(conv3_1)
+    pool3 = Dropout(dropout_ratio)(pool3)
+
+    up2_2 = Conv3DTranspose(nb_filter[1], 2, strides=2, name='up22', padding='same')(conv3_1)
+    conv2_2 = concatenate([up2_2, conv2_1], name='merge22')
+    conv2_2 = standard_unit(conv2_2, stage='22', nb_filter=nb_filter[1])
+
+    up1_3 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up13', padding='same')(conv2_2)
+    conv1_3 = concatenate([up1_3, conv1_1, conv1_2], name='merge13')
+    conv1_3 = standard_unit(conv1_3, stage='13', nb_filter=nb_filter[0])
+
+    conv4_1 = standard_unit(pool3, stage='41', nb_filter=nb_filter[3])
+
+    up3_2 = Conv3DTranspose(nb_filter[2], 2, strides=2, name='up32', padding='same')(conv4_1)
+    conv3_2 = concatenate([up3_2, conv3_1], name='merge32')
+    conv3_2 = standard_unit(conv3_2, stage='32', nb_filter=nb_filter[2])
+
+    up2_3 = Conv3DTranspose(nb_filter[1], 2, strides=2, name='up23', padding='same')(conv3_2)
+    conv2_3 = concatenate([up2_3, conv2_1, conv2_2], name='merge23')
+    conv2_3 = standard_unit(conv2_3, stage='23', nb_filter=nb_filter[1])
+
+    up1_4 = Conv3DTranspose(nb_filter[0], 2, strides=2, name='up14', padding='same')(conv2_3)
+    conv1_4 = concatenate([up1_4, conv1_1, conv1_3, conv1_2], name='merge14')
+    conv1_4 = standard_unit(conv1_4, stage='14', nb_filter=nb_filter[0])
+
+    # nestnet_output_1 = Conv3D(classes, 1, activation='softmax', name='output_1', padding='same',
+    #                           kernel_regularizer=l2(l2_ratio))(conv1_2)
+    # nestnet_output_2 = Conv3D(classes, 1, activation='softmax', name='output_2', padding='same',
+    #                           kernel_regularizer=l2(l2_ratio))(conv1_3)
+    # nestnet_output_3 = Conv3D(classes, 1, activation='softmax', name='output_3', padding='same',
+    #                           kernel_regularizer=l2(l2_ratio))(conv1_4)
+
+    nestnet_output = Conv3D(classes, 1, activation='softmax', name='output', padding='same',
+                            kernel_regularizer=l2(l2_ratio))(conv1_4)
+
+    model = Model(input=img_input, output=[nestnet_output])
+
+    model.compile(optimizer=Adam(lr=config["initial_learning_rate"]),
+                  loss=[dice_coef_loss],
+                  metrics={'output': dice_coef})
     return model
 
 
@@ -1626,11 +1621,8 @@ def conv3d_prelu(x, filters=32, kernel_size=3, padding='same', strides=1):
 
 def conv3d_relu_gn_dilation(x, filters=32, kernel_size=3, dilation_rate=1, padding='same', strides=1):
     out = Conv3D(filters, kernel_size=kernel_size, dilation_rate=dilation_rate, padding=padding, activation='relu',
-                 strides=strides)(x)
-    if filters < 32:
-        out = GroupNormalization(groups=filters)(out)
-    else:
-        out = GroupNormalization()(out)
+                 strides=strides, kernel_regularizer=l2(l2_ratio))(x)
+    out = GroupNormalization(groups=filters)(out) if filters < 32 else GroupNormalization()(out)
     # out = BatchNormalization()(out)
     # out = convolutional_block_attention_module(out, filters)
     return out
@@ -1705,26 +1697,20 @@ def dsn_block(input, ks_stride=1):
 
 
 def standard_unit(input_tensor, stage, nb_filter, kernel_size=3):
-    dropout_ratio = 1
     groups = nb_filter if nb_filter < 32 else 32
     x = Conv3D(nb_filter, kernel_size, activation='relu', name='conv'+stage+'_1',
-               kernel_initializer='he_normal', padding='same', kernel_regularizer=l2(l2_ratio))(input_tensor)
+               padding='same', kernel_regularizer=l2(l2_ratio))(input_tensor)
     x = GroupNormalization(groups)(x)
-    # x = Dropout(dropout_ratio, name='dp'+stage+'_1')(x)
     x = Conv3D(nb_filter, kernel_size, activation='relu', name='conv'+stage+'_2',
-               kernel_initializer='he_normal', padding='same', kernel_regularizer=l2(l2_ratio))(x)
+               padding='same', kernel_regularizer=l2(l2_ratio))(x)
     x = GroupNormalization(groups)(x)
-    # x = Dropout(dropout_ratio, name='dp'+stage+'_2')(x)
 
     return x
 
 
 ##
 def dice_coef(y_true, y_pred):
-    if y_pred.get_shape()[-1] == 2:
-        y_pred_f = K.flatten(y_pred[..., -1])
-    else:
-        y_pred_f = K.flatten(y_pred)
+    y_pred_f = K.flatten(y_pred[..., -1]) if y_pred.get_shape()[-1] == 2 else K.flatten(y_pred)
     y_true_f = K.flatten(y_true)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + config["smooth"]) / (K.sum(y_true_f) + K.sum(y_pred_f) + config["smooth"])

@@ -8,8 +8,8 @@ import numpy as np
 import os
 import shutil
 
-path = '/home/zzr/Data/Skin/data/All_2'
-result_path = '/home/zzr/Data/Skin/data/train_test_all_2'
+path = '/media/zzr/Data/skin_xml/cell/data/patch'
+result_path = '/media/zzr/Data/skin_xml/cell/data/train_test'
 number = 0
 for sub_dir in os.listdir(path):
     print sub_dir

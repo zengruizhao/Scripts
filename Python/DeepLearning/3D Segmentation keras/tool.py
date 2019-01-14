@@ -1,17 +1,19 @@
 # coding=utf-8
+from __future__ import division
+import SimpleITK as sitk
+from multiprocessing import Process
+import pydicom
 import numpy as np
 import os
 import h5py
-import shutil
 import matplotlib.pyplot as plt
 import nibabel as nib
-from skimage import transform
-from skimage.filters import threshold_otsu
-from skimage.morphology import reconstruction, remove_small_objects, binary_erosion, disk, erosion, square
-from skimage.measure import regionprops, find_contours, label
-from skimage.util import crop
 from PIL import Image
 import time
+import cv2
+import scipy.io as mat
+import shutil
+import nrrd
 
 
 def copy_file():#copy files from one path to another path
@@ -51,19 +53,21 @@ def read_h5():#read h5 file and show
 
 
 def statics_slice():    # statics how many slices
-    path = '/media/zzr/Data/Task07_Pancreas/preprocess/crop_img'
-    shape = []
-    shape1 = []
-    for file in os.listdir(path):
-        img = nib.load(os.path.join(path, file))
-        img = img.get_data()
-        shape.append(img.shape[0])
+    path = '/media/zzr/Data/Task07_Pancreas/ChangHai/preprocess'
+    shape0, shape1, shape2 = [], [], []
+    for idx, file_ in enumerate(os.listdir(path)):
+        print idx
+        img = nib.load(os.path.join(path, file_))
+        img_zoom = img.header.get_zooms()[:3]
+        shape0.append(img.shape[0])
         shape1.append(img.shape[1])
-    print np.min(shape), np.max(shape), np.min(shape1), np.max(shape1)
-    plt.hist(shape, 100)
-    plt.figure()
-    plt.hist(shape1, 100)
-    plt.show()
+        shape2.append(img.shape[2])
+
+    print np.min(shape0), np.max(shape0), np.min(shape1), np.max(shape1), np.min(shape2), np.max(shape2)
+    print np.mean(shape0), np.mean(shape1), np.mean(shape2)
+    plt.hist(shape0, len(os.listdir(path))//2), plt.figure()
+    plt.hist(shape1, len(os.listdir(path))//2), plt.figure()
+    plt.hist(shape2, len(os.listdir(path))//2), plt.show()
 
 
 def generate_hdf5_list(path):
@@ -75,57 +79,10 @@ def generate_hdf5_list(path):
             file.write(all_path + '\n')
 
 
-def OtsuAndMorphology(input_path, output_path):
-    file_list = os.listdir(os.path.join(input_path, 'imagesTr'))
-    file_list = [i for i in file_list if 'nii' in i]
-    for idx, i in enumerate(file_list):
-        print idx
-        img_orig, img_affine = read_nii(os.path.join(input_path+'/'+'imagesTr', i))
-        mask_orig, mask_affine = read_nii(os.path.join(input_path+'/'+'labelsTr', i))
-        img = (img_orig-np.min(img_orig))/(np.max(img_orig) - np.min(img_orig))
-        # otsu threshold
-        thresh = threshold_otsu(img)
-        binary = img > thresh
-        seed = np.copy(binary)
-        seed[1:-1, 1:-1] = binary.max()
-        mask = binary
-        filled = reconstruction(seed, mask, method='erosion')
-        # for i in xrange(filled.shape[2]):
-        #     plt.imshow(img[..., i], cmap='gray')
-        #     plt.axis('off')
-        #     plt.show()
-        # erosion
-        erosion_ = erosion(filled)
-        # bwlabel
-        label_, label_num = label(np.uint8(erosion_), return_num=True)
-        props = regionprops(label_)
-        filled_area = []
-        label_list = []
-        for prop in props:
-            filled_area.append(prop.area)
-            label_list.append(prop.label)
-        filled_area_sort = np.sort(filled_area)
-        true_label = label_list[np.squeeze(np.argwhere(filled_area == filled_area_sort[-1]))]
-        label_ = label_ == true_label
-        bw_list = np.squeeze(crop_bw(label_))
-        ##
-        img_out = img[bw_list[0]:bw_list[3], bw_list[1]:bw_list[4], bw_list[2]:bw_list[5]]
-        label_out = mask_orig[bw_list[0]:bw_list[3], bw_list[1]:bw_list[4], bw_list[2]:bw_list[5]]
-        # save_nii(img_out, img_affine, os.path.join(output_path+'/'+'crop_img', i))
-        # save_nii(label_out, mask_affine, os.path.join(output_path+'/'+'crop_label', i))
-        for ii in range(img.shape[2]):
-            # result = label_[..., ii]
-            result = img_out[..., ii]
-            plt.imshow(result, cmap='gray')
-            plt.axis('off')
-            # plt.imshow(transform.rotate(result, 90))
-            plt.show()
-
-
 def read_nii(path):
     img = nib.load(path)
     affine = img.affine
-    img = img.get_data()
+    img = img.get_fdata()
     return img, affine
 
 
@@ -149,17 +106,6 @@ def crop_bw(data):
     y_max.append(max(array[1, :]))
     z_max.append(max(array[2, :]))
     return [x_min, y_min, z_min, x_max, y_max, z_max]
-
-
-def read_file(fpath):
-    BLOCK_SIZE = 1024
-    with open(fpath, 'rb') as f:
-        while True:
-            block = f.read(BLOCK_SIZE)
-            if block:
-                yield block
-            else:
-                return
 
 
 def mnist_show():
@@ -218,14 +164,360 @@ def rotate():
     save_nii(outImage, affine, os.path.join('/home/zzr/Data/pancreas', 'image.nii.gz'))
 
 
+def elastic_deformation():
+    img_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/image'
+    mask_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/label'
+    img = os.path.join(img_path, 'PANCREAS_0001.nii.gz')
+    mask = os.path.join(mask_path, 'PANCREAS_0001.nii.gz')
+    img, affine_img = read_nii(img)
+    mask, affine_mask = read_nii(mask)
+    outImage, outMask = elastic_transform(img, mask, img.shape[1] * 0.03)
+    print np.unique(outMask)
+    save_nii(outImage, affine_img, os.path.join('/home/zzr/Data/pancreas', 'image.nii.gz'))
+    save_nii(outMask, affine_mask, os.path.join('/home/zzr/Data/pancreas', 'label.nii.gz'))
+
+
+def elastic_transform(image, mask, alpha_affine, random_state=None):
+    """Elastic deformation of images as described in [Simard2003]_ (with modifications).
+    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
+         Convolutional Neural Networks applied to Visual Document Analysis", in
+         Proc. of the International Conference on Document Analysis and
+         Recognition, 2003.
+
+     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
+    """
+    channel = image.shape[-1]
+    image = np.concatenate((image, mask), axis=-1)
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+
+    shape = image.shape
+    shape_size = shape[:2]
+
+    # Random affine
+    center_square = np.float32(shape_size) // 2
+    square_size = min(shape_size) // 3
+    pts1 = np.float32([center_square + square_size, [center_square[0] + square_size, center_square[1] - square_size],
+                       center_square - square_size])
+    pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
+    M = cv2.getAffineTransform(pts1, pts2)
+    image = cv2.warpAffine(image, M, shape_size[::-1], borderMode=cv2.BORDER_REFLECT_101, flags=cv2.INTER_NEAREST)
+
+    return image[..., 0:channel], image[..., channel:]
+
+
+def translation():
+    img_path = '/home/zzr/Data/pancreas/caffe_data/256_160_48/image'
+    mask_path = '/home/zzr/Data/pancreas/caffe_data/256_160_48/label'
+    img = os.path.join(img_path, 'pancreas_001.nii.gz')
+    mask = os.path.join(mask_path, 'pancreas_001.nii.gz')
+    img, affine_img = read_nii(img)
+    mask, affine_mask = read_nii(mask)
+    shape = img.shape
+    shape_size = shape[:2]
+    # M = np.float32([[1, 0], [0, 1], [0, 0]])
+    # M = cv2.getAffineTransform(M, np.zeros_like(M))
+    M = np.array([[1, 0, -50], [0, 1, 50]], np.float32)
+    image = cv2.warpAffine(img, M, shape_size[::-1], borderMode=cv2.BORDER_REFLECT_101, flags=cv2.INTER_NEAREST)
+    for i in xrange(shape[-1]):
+        plt.imshow(image[..., i])
+        plt.show()
+
+
+def copy_folder():
+    ct_pnet = mat.loadmat('/media/zzr/My Passport/430/MRI_PNET.mat')
+    path = '/media/zzr/My Passport/430/430'
+    out_path = '/media/zzr/My Passport/430/MRI_PNET'
+    for i in xrange(ct_pnet['MRI'][:, 0].size):
+        print '*' * 5, i
+        case_name = ct_pnet['MRI'][i, 0][0]
+        # print len(os.listdir(os.path.join(path, case_name)))
+        # delete existed folder
+        # if os.path.exists(os.path.join(out_path, case_name)):
+        #     shutil.rmtree(os.path.join(out_path, case_name))
+        start = time.time()
+        shutil.copytree(os.path.join(path, case_name), os.path.join(out_path, case_name))
+        print time.time() - start
+
+
+def pnet_ct():  # dicom2nii
+    path = '/media/zzr/My Passport/430/CT/CT_PNET'
+    out_path = '/media/zzr/My Passport/430/CT/Preprocess_CT1'
+    lack = []
+    for idx, case in enumerate(os.listdir(path)):
+        if idx == 31:
+            # print case
+            print idx
+            case_path = os.path.join(path, case)
+            for idxx, phase in enumerate(os.listdir(case_path)):
+                # print phase
+                phase_path = os.path.join(case_path, phase)
+                dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
+                label_file = [i for i in os.listdir(phase_path) if i.endswith('nrrd')]
+                if label_file:
+                    if 'P' in label_file[0]:
+                        DATA = np.zeros([512, 512, len(dicom_file)])
+                        label_data, label_options = nrrd.read(os.path.join(phase_path, label_file[0]))
+                        label_data[label_data == 6] = 1
+                        affine = label_options['space directions']
+                        spaceOrigin = np.append(np.array(label_options['space origin']), 1)
+                        affine = np.row_stack((affine, np.zeros([1, 3])))
+                        # affine = np.column_stack((affine, np.reshape([0, 0, 0, 1], [4, 1])))
+                        affine = np.column_stack((affine, np.reshape(spaceOrigin, [4, 1])))
+                        # affine = np.column_stack((affine, np.reshape(spaceOrigin.append(1), [4, 1])))
+                        dicom_slice = []
+                        for img in dicom_file:
+                            dicom_slice.append(int(img.split('.')[0]))
+
+                        dicom_slice = sorted(dicom_slice)
+
+                        for img in dicom_file:
+                            dicom = pydicom.read_file(os.path.join(phase_path, img))
+                            try:
+                                data = dicom.pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
+                                # plt.imshow(data)
+                                # plt.show()
+                            except AttributeError:
+                                data = np.zeros_like(data)
+                                print '*' * 10, 'AttributeError'
+
+                            except ValueError:
+                                data = np.zeros_like(data)
+                                print '*' * 10, 'ValueError'
+
+                            try:  # Prevent missing dicom file
+                                # DATA[..., dicom.InstanceNumber - 1] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+                                # DATA[..., dicom_slice.index(int(img.split('.')[0]))] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+                                DATA[..., dicom_slice.index(int(img.split('.')[0]))] = np.transpose(data)
+                            except IndexError:
+                                pass
+
+                        DATA = DATA[::-1, ::-1, ::-1]
+                        if not os.path.exists(os.path.join(out_path, case)):
+                            os.makedirs(os.path.join(out_path, case))
+
+                        nib.save(nib.Nifti1Image(DATA, affine),
+                                 os.path.join(os.path.join(out_path, case), label_file[0][:-5] + '_img.nii.gz'))
+                        # nib.save(nib.Nifti1Image(label_data, affine),
+                        #          os.path.join(os.path.join(out_path, case), label_file[0][:-5] + '_label.nii.gz'))
+
+                else:
+                    lack.append(case)
+
+    print lack
+
+
+def pnet_mri():  # dicom2nii
+    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
+    out_path = '/media/zzr/My Passport/430/MRI/Preprocess1_MRI'
+    lack = []
+    for idx, case in enumerate(os.listdir(path)):
+        if idx >= 0:
+            print idx, case
+            case_path = os.path.join(path, case)
+            for idxx, phase in enumerate(os.listdir(case_path)):
+                if idxx >= 0:
+                    # print phase
+                    phase_path = os.path.join(case_path, phase)
+                    dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
+                    label_file = [i for i in os.listdir(phase_path) if i.endswith('nrrd')]
+                    if label_file:
+                        for i in label_file:
+                            label_data, label_options = nrrd.read(os.path.join(phase_path, i))
+                            label_data[label_data == 6] = 1
+                            affine = generateAffine(label_options)
+                            dicom_slice = []
+                            for img in dicom_file:
+                                temp = img.split('.d')[0]
+                                if '.' in temp:
+                                    indexx = int(temp.split('.')[-1])
+                                else:
+                                    indexx = int(temp)
+                                dicom_slice.append(indexx)
+
+                            dicom_slice = sorted(dicom_slice)
+                            dicom = pydicom.read_file(os.path.join(phase_path, img))
+                            DATA = np.zeros([dicom.Columns, dicom.Rows, len(dicom_file)])
+                            for img in dicom_file:
+                                dicom = pydicom.read_file(os.path.join(phase_path, img))
+                                try:
+                                    data = dicom.pixel_array
+                                except AttributeError:
+                                    data = np.zeros_like(data)
+                                    print '*' * 10, 'AttributeError'
+
+                                except ValueError:
+                                    data = np.zeros_like(data)
+                                    print '*' * 10, 'ValueError'
+
+                                try:  # Prevent missing dicom file
+                                    DATA[..., int(dicom.InstanceNumber) - 1] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+                                    #
+                                    # temp = img.split('.d')[0]
+                                    # if '.' in temp:
+                                    #     indexx = int(temp.split('.')[-1])
+                                    # else:
+                                    #     indexx = int(temp)
+                                    # DATA[..., dicom_slice.index(indexx)] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+                                except IndexError:
+                                    pass
+                            if not os.path.exists(os.path.join(out_path, case)):
+                                os.makedirs(os.path.join(out_path, case))
+
+                            nib.save(nib.Nifti1Image(DATA, affine),
+                                     os.path.join(os.path.join(out_path, case), i[:-5] + '_img.nii.gz'))
+                            nib.save(nib.Nifti1Image(label_data, affine),
+                                     os.path.join(os.path.join(out_path, case), i[:-5] + '_label.nii.gz'))
+
+                    else:
+                        lack.append(case)
+
+    print lack
+
+
+def generateAffine(options):
+    """
+    :param options:
+    :return:
+    """
+    affine = np.zeros((3, 3))
+    for x, i in enumerate(options['space directions']):
+        for y, j in enumerate(i):
+            if y == 2:
+                affine[x, y] = float(j)
+            else:
+                affine[x, y] = -float(j)
+
+    affine = np.row_stack((affine, np.zeros([1, 3])))
+    origin = []
+    for x, i in enumerate(options['space origin']):
+        if x == 2:
+            origin.append(float(i))
+        else:
+            origin.append(-float(i))
+    origin = np.reshape(np.append(origin, 1), (4, 1))
+    affine = np.column_stack((affine, origin))
+
+    return affine
+
+
+def temp():
+    path = '/media/zzr/My Passport/430/MRI/Preprocess_MRI/03534455_WANG YONG SHENG_MR/'
+    img_file = [i for i in os.listdir(path) if 'img' in i]
+    label_file = [i for i in os.listdir(path) if 'label' in i]
+    for idx, i in enumerate(img_file):
+        img = nib.load(os.path.join(path, i))
+        img_data = img.get_fdata()
+        label = nib.load(os.path.join(path, label_file[idx]))
+        label_data = label.get_fdata()
+        for j in xrange(img_data.shape[-1]):
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.imshow(img_data[..., j])
+            ax2.imshow(label_data[..., -1])
+            plt.show()
+
+
+def pnet_ct_time():  # dicom2nii
+    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
+    # with open('time.txt', 'w') as file:
+    #     for idx, case in enumerate(os.listdir(path)):
+    #         print idx
+    #         case_path = os.path.join(path, case)
+    #         phase_path = os.path.join(case_path, os.listdir(case_path)[0])
+    #         dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
+    #         dicom = pydicom.read_file(os.path.join(phase_path, dicom_file[0]))
+    #         dicom_time = dicom.AcquisitionDate
+    #         file.write(case + ' ' + dicom_time + '\n')
+    data = []
+    for idx, case in enumerate(os.listdir(path)):
+        print idx
+        case_path = os.path.join(path, case)
+        phase_path = os.path.join(case_path, os.listdir(case_path)[0])
+        dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
+        dicom = pydicom.read_file(os.path.join(phase_path, dicom_file[0]))
+        dicom_time = str(int(dicom.AcquisitionDate))
+        data.append(case + '+' + dicom_time)
+
+    mat.savemat('/media/zzr/My Passport/430/MRI/MRI_time1.mat', {'data': data})
+
+
+def dicom_spacing():  # dicom2nii
+    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
+    data = []
+    for idx, case in enumerate(os.listdir(path)):
+        print idx
+        case_path = os.path.join(path, case)
+        for i in os.listdir(case_path):
+            nrrd = [j for j in os.listdir(os.path.join(case_path, i)) if j.endswith('nrrd') & ('T2' in j)]
+            if nrrd:
+                dicom_file = [jj for jj in os.listdir(os.path.join(case_path, i)) if jj.endswith('dcm')]
+                dicom = pydicom.read_file(os.path.join(os.path.join(case_path, i), dicom_file[0]))
+                spacing = str(dicom.PixelSpacing[0])
+                data.append(case + '+' + spacing)
+
+    mat.savemat('/media/zzr/My Passport/430/MRI/spacing_T2.mat', {'data': data})
+
+
+def dicomInformation():
+    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
+    data = []
+    for idx, case in enumerate(os.listdir(path)):
+        print idx
+        case_path = os.path.join(path, case)
+        for i in os.listdir(case_path):
+            nrrd = [j for j in os.listdir(os.path.join(case_path, i)) if j.endswith('nrrd') & ('T2' in j)]
+            if nrrd:
+                dicom_file = [jj for jj in os.listdir(os.path.join(case_path, i)) if jj.endswith('dcm')]
+                dicom = pydicom.read_file(os.path.join(os.path.join(case_path, i), dicom_file[0]))
+                spacing = str(dicom.PixelSpacing[0])
+                rows = str(dicom.Rows)
+                columns = str(dicom.Columns)
+                sliceThickness = str(dicom.SliceThickness)
+                try:
+                    sliceSpacing = str(dicom.SpacingBetweenSlices)
+                except AttributeError:
+                    sliceSpacing = str(dicom.SliceThickness)
+
+                manufacturer = str(dicom.Manufacturer)
+                data.append(case + '+' + spacing + '+' + rows + '+' + columns + '+'
+                            + manufacturer + '+' + sliceThickness + '+' + sliceSpacing)
+
+    mat.savemat('/media/zzr/My Passport/430/MRI/T2Information.mat', {'data': data})
+
+
+def show_img():
+    path = '/media/zzr/Data/Task07_Pancreas/Game/preprocess1/img'
+    for i in os.listdir(path):
+        img = nib.load(os.path.join(path, i))
+        # print img.affine
+        img = img.get_fdata()
+        # print np.unique(img)
+        print img.shape
+        for j in xrange(img.shape[-1]):
+            print j
+            plt.imshow(img[:, :, j])
+            # mngr = plt.get_current_fig_manager()
+            # mngr.window.SetGeometry(0, 0, 500, 500)
+            plt.show()
+
+
 if __name__ == '__main__':
     # copy_file()
     # read_h5()
     # statics_slice()
     # generate_hdf5_list('/home/zzr/git/3D_net/3Dunet_abdomen_cascade/data')
-    # OtsuAndMorphology(input_path='/media/zzr/Data/Task07_Pancreas',
-    #                   output_path='/media/zzr/Data/Task07_Pancreas/preprocess')
+    # OtsuAndMorphology(input_path='/media/zzr/Data/Task07_Pancreas/ChangHai',
+    #                   output_path='/media/zzr/Data/Task07_Pancreas/ChangHai')
     # mnist_show()
-    roisize()
+    # roisize()
     # rotate()
-
+    # elastic_deformation()
+    # translation()
+    # pnet_ct()
+    # temp()
+    # copy_folder()
+    # pnet_mri()
+    # pnet_ct_time()
+    # dicom_spacing()
+    # dicomInformation()
+    show_img()

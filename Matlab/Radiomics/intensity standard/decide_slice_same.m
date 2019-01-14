@@ -21,7 +21,7 @@ for i=3:length(subpath)
         [label, label_meta] = nrrdread(label_path);
         [m,n,slice] = size(label);
         [~,~,slicee] = size(img);
-        if slice ~= slicee disp(str2num(subpath(i).name));end
+        if slice ~= slicee;disp(str2num(subpath(i).name));end
         case_num = case_num+1;
     end
 end

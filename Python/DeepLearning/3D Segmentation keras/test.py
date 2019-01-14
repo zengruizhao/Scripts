@@ -1,20 +1,21 @@
+# coding=utf-8
 import nibabel as nib
 import os
 import numpy as np
 from dipy.align.reslice import reslice
 from utils import split_filename
 from nilearn.image import resample_img, reorder_img, new_img_like
-from model import deconv_conv_unet_model_3d_conv_add_48_dalitaion_coordconv_SN, dice_coef_loss, dice_coef
+from model import Nest_Net, dice_coef_loss, dice_coef
 from config import config
 from keras.models import load_model
 from matplotlib import pyplot as plt
 from scipy import misc
-#import newmodel
 #from denseinference import CRFProcessor
 from medpy import metric
 from scipy import ndimage
 
-def zoom(seg_data, zoom_factor=(1,1,1)):
+
+def zoom(seg_data, zoom_factor=(1, 1, 1)):
     # new_img = ndimage.zoom(img_data, zoom_factor, order=4)
     # print 'new_img:' + str(new_img.shape)
     new_seg = ndimage.zoom(seg_data, zoom_factor, order=0)
@@ -22,7 +23,8 @@ def zoom(seg_data, zoom_factor=(1,1,1)):
     print 'new_seg:' + str(new_seg.shape)
     return new_seg
 
-def pad_process(data,target_pad_shape = (144,144,80)):
+
+def pad_process(data,target_pad_shape=(144, 144, 80)):
     img_shape = data.shape
     x = img_shape[0]
     y = img_shape[1]
@@ -65,6 +67,7 @@ def normalize_image(img):
     min_, max_ = float(np.min(img)), float(np.max(img))
     return (img - min_) / (max_ - min_)
 
+
 def img_reslice(img_data, img_affine, img_zoom, new_zooms=(1., 1., 1.), order=1):
     data, affine = reslice(img_data, img_affine, img_zoom, new_zooms)
     return data, affine
@@ -103,48 +106,6 @@ def imshow(*args, **kwargs):
             plt.imshow(args[i], cmap[i], interpolation='none')
     plt.show()
 
-# seg = nib.load('/home/mi/smj/data/liver/unet_seg/train_val_data/seg/preprocess_segmentation-3.nii.gz')
-# seg_data = seg.get_data()
-# seg_data = np.expand_dims(seg_data, 0)
-# label_list = []
-# for sample_num in range(seg_data.shape[0]):
-#     samples_list = []
-#     for label in range(config["n_labels"]):
-#         temparray = np.zeros(seg_data.shape[1:])
-#         temparray[seg_data[sample_num] == label] = 1
-#         samples_list.append(temparray)
-#     label_list.append(samples_list)
-# seg1 = label_list[0][0]
-# seg2 = label_list[0][1]
-# nib.save(nib.Nifti1Image(seg1,seg.affine,seg.header), '/home/mi/smj/data/liver/unet_seg/train_val_data/seg/preprocess_seg1-3.nii.gz')
-# nib.save(nib.Nifti1Image(seg2,seg.affine,seg.header), '/home/mi/smj/data/liver/unet_seg/train_val_data/seg/preprocess_seg2-3.nii.gz')
-
-
-# test_file = '/home/mi/smj/data/liver/unet_seg/train_val_data/img/preprocess_volume-9.nii.gz'
-# save_path = '/home/mi/smj/data/liver/unet_seg/test'
-# img = nib.load(test_file)
-# img_data = img.get_data()
-# img_affine = img.affine
-# img_header = img.header
-# # img_zoom = img.header.get_zooms()[:3]
-# # img_data, img_affine = img_reslice(img_data, img_affine, img_zoom, new_zooms=(1., 1., 1.), order=1)
-# # img_data = np.clip(img_data, 0, 200)
-# # img_data = normalize_image(img_data)
-# # new_data = img_resize(nib.Nifti1Image(img_data, img_affine, img_header), target_shape, interpolation="nearest")
-# test_data = np.expand_dims(img_data, 0)
-# test_data = np.expand_dims(test_data, -1)
-# test_data = np.array(test_data)
-#
-# model = unet_model_3d(shape=(128,128,128,1), classes=2)
-# model.load_weights('/home/mi/smj/myproject/keras_3DUnet_v5/3d_unet_model.h5')
-# prediction = model.predict(test_data,batch_size=1)
-# print prediction.shape
-# print prediction
-# result = np.argmax(prediction[0], axis=-1).astype(np.uint8)
-# nib.save(nib.Nifti1Image(result, img_affine, img_header), os.path.join(save_path, 'process_seg-9.nii.gz'))
-# # prediction = model.predict(test_data, batch_size=1)
-# # result += np.argmax(np.squeeze(prediction), axis=-1).astype(np.uint8)
-
 
 def test():
     # img_path = '/home/mi/smj/data/liver/3DUnet_data/get128128128shape_test/img'
@@ -160,7 +121,7 @@ def test():
 
     # x,y = load_test_data()
     x = nib.load('/media/mw/mw_research/data/ruxian/3D_fudan/data/img/leftBao_Qiu_Sao_10499218.nii.gz')
-    x =  x.get_data()
+    x = x.get_data()
     y = nib.load('/media/mw/mw_research/data/ruxian/3D_fudan/data/mask/leftBao_Qiu_Sao_10499218.nii.gz')
     y = y.get_data()
     # x = np.load(os.path.join(img_path, img_name))
@@ -233,41 +194,22 @@ def test():
 
 def test_train(img_path, save_path):
     img_names = os.listdir(img_path)
-
-    # model = newmodel.deconv_conv_unet_model_3d_conv_add((320, 320, 32, 1), 2)
-    model = deconv_conv_unet_model_3d_conv_add_48_dalitaion_coordconv_GN(shape = (256,160,48, 1), classes=2)
-    model.load_weights('/home/zzr/Data/pancreas/script/models/pancreas_weights.140.h5')
-
+    model = Nest_Net(shape=(None, None, None, 1), classes=2)
+    model.load_weights('/home/zzr/Data/pancreas/script/models/pancreas_weights.060.h5')
     for img_name in img_names:
         print img_name
         img = nib.load(os.path.join(img_path, img_name))
         img_data = img.get_data()
         affine = img.affine
-        zooms = img.header.get_zooms()
-        print(zooms)
         x = img_data[np.newaxis, :, :, :, np.newaxis]
         pred = model.predict(x, batch_size=1, verbose=1)
-        result = np.array(np.squeeze(pred) > 0.5).astype(np.uint8)
-        result = np.squeeze(result)
-        # result = zoom(result,zoom_factor=(1.6,1.6,1))
-        #new_shape = (144,144,80)
-        #result = nib.Nifti1Image(result, img.affine)
-        #img_resize_1 = img_resize(result, new_shape, interpolation="nearest")
-
-        # original_path = '/media/mw/mw_research/data/code/python/prostate/prostate_data/pre_treated/'
-        # original_img = nib.load(os.path.join(original_path, img_name))
-        # original_data = original_img.get_data()
-        # original_affine = original_img.affine
-        # original_zooms = original_img.header.get_zooms()
-        # img_reslice_data, img_affine = img_reslice(original_data, original_affine, original_zooms, new_zooms=(1., 1., 1.), order=0)
-        # target_pad_shape = img_reslice_data.shape
-        # img_pad = pad_process(result,target_pad_shape=target_pad_shape)
-        # print(img_pad.shape)
-        # img_final,affine_1= img_reslice(img_pad, original_affine, (1., 1., 1.), new_zooms=original_zooms, order=0)
-        # print(img_final.shape)
-        #img_final = ndimage.rotate(img_final, 180, (2, 1))
+        result = np.array(np.squeeze(pred[..., -1] > 0.5)).astype(np.uint8)
+        print result.shape
+        # img_final = ndimage.rotate(img_final, 180, (2, 1))
         img_final = nib.Nifti1Image(result, affine)
-        nib.save(img_final,os.path.join(save_path, img_name))
+        nib.save(img_final, os.path.join(save_path, img_name))
+
+
 def evaluate_test(img_path, mask_path):
     img_names = os.listdir(img_path)
     model = deconv_conv_unet_model_3d_conv_add_48_dalitaion_coordconv_SN(shape=(256, 160, 48, 1), classes=2)
@@ -287,15 +229,6 @@ def evaluate_test(img_path, mask_path):
         std = np.std(evaluate_list)
     print evaluate_list
     print mean, std
-if __name__ == "__main__":
-
-    img_path = '/home/zzr/Data/pancreas/overall_train_test/test_img'
-    mask_path = '/home/zzr/Data/pancreas/overall_train_test/test_mask'
-    save_path = '/home/zzr/Data/pancreas/train_test/256_160_48/result_test'
-    # test_train(img_path,save_path)
-    evaluate_test(img_path, mask_path)
-
-
 
 
 def apply_crf(imgvol, segvol, probvol, pred_name):
@@ -315,48 +248,10 @@ def apply_crf(imgvol, segvol, probvol, pred_name):
     _dice = metric.dc(liver_pred == 1, segvol == 1)
     print "Dice before CRF: " + str(_dice)
 
-# if __name__ == '__main__':
-#     # test()
-#     # img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/img'
-#     # save_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/pred'
-#     # modelpath = '/home/mi/smj/myproject/keras_3DUnet_v5.1/model/augdata/deconv_conv_augdata/check_point.hdf5'
-#     # test_all(img_path, save_path, modelpath)
-#
-#     # img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd/img'
-#     # save_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd/new1_pred'
-#     # modelpath = '/home/mi/smj/myproject/keras_3DUnet_v5.1/model/augdata/deconv_conv_augdata/new/1/check_point.hdf5'
-#     # test_train(img_path, save_path, modelpath)
-#
-#     # img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/img'
-#     # save_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/new1_pred'
-#     # modelpath = '/home/mi/smj/myproject/keras_3DUnet_v5.1/model/augdata/deconv_conv_augdata/new/1/check_point.hdf5'
-#     # test_all(img_path, save_path, modelpath)
-#
-#     # img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/img'
-#     # save_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/bilinear_prob_128'
-#     # modelpath = '/home/mi/smj/myproject/keras_3DUnet_v5.1/model/augdata/deconv_conv_augdata/new/1/check_point.hdf5'
-#     # test_train(img_path, save_path, modelpath)
-#
-#     # img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/img'
-#     # save_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/BN_RELU/pred'
-#     # modelpath = '/home/mi/smj/myproject/keras_3DUnet_v5.1/model/augdata/aug_bn_relu/check_point.hdf5'
-#     # test_all(img_path, save_path, modelpath)
-#
-#     img_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/img'
-#     seg_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/seg'
-#     prob_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/prob_128'
-#     pred_path = '/home/mi/smj/data/liver/new_unet_seg/moredata_addnorm_process_std/get128shape_moredata_laststd_test/prob_128_crf_to_result'
-#     prob_names = os.listdir(prob_path)
-#     for prob_name in prob_names:
-#         probvol_1 = np.load(os.path.join(prob_path, prob_name), mmap_mode='r')
-#         probvol_1 = np.clip(probvol_1, 0, 1)
-#         probvol_0 = np.array(1 - probvol_1)
-#         prob_shape = probvol_1.shape + (2,)
-#         probvol = np.zeros((prob_shape), dtype=float)
-#         probvol[..., 0] = probvol_0
-#         probvol[..., 1] = probvol_1
-#         imgvol = np.load(os.path.join(img_path, 'volume-' + prob_name.split('-')[1]), mmap_mode='r')
-#         imgvol = normalize_image(imgvol)
-#         segvol = np.load(os.path.join(seg_path, 'segmentation-' + prob_name.split('-')[1]), mmap_mode='r')
-#         pred_name = os.path.join(pred_path, 'crf_pred-' + prob_name.split('-')[1])
-#         apply_crf(imgvol,segvol, probvol, pred_name)
+
+if __name__ == "__main__":
+    img_path = '/media/zzr/Data/Task07_Pancreas/ChangHai/preprocess'
+    mask_path = '/home/zzr/Data/pancreas/overall_train_test/test_mask'
+    save_path = '/media/zzr/Data/Task07_Pancreas/ChangHai/result'
+    test_train(img_path, save_path)
+    # evaluate_test(img_path, mask_path)

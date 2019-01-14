@@ -6,8 +6,10 @@ from skimage import measure, draw
 from scipy import misc
 import cv2
 
+
 def split_filename(filename):
     return filename.split('.')[0].split('-')[1]
+
 
 def extract_precess_mode(name):
     return name.split('_')[0]

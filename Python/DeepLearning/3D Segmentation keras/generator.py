@@ -20,8 +20,8 @@ def get_training_and_testing_generators(train_data_path, train_seg_path, batch_s
                                         phase='train')
     # Set the number of training and testing samples per epoch correctly
     nb_training_samples = len(train_data_name)
-    test_img_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/image'
-    test_seg_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/label'
+    test_img_path = config["test_img_path"]
+    test_seg_path = config["test_seg_path"]
     testing_generator = data_generator(test_img_path,
                                        test_seg_path,
                                        os.listdir(test_img_path),
@@ -43,33 +43,34 @@ def split_list(input_list, split=0.8, shuffle_list=True):
     return training, testing
 
 
-def data_generator(train_data_path, train_seg_path, data_name, batch_size=1, flip=False, rotate=False, affine=False, phase='train'):
+def data_generator(data_path, seg_path, data_name, batch_size=1,
+                   flip=False, rotate=False, affine=False, phase='train'):
     while True:
         np.random.shuffle(data_name)
         x_list = list()
         y_list = list()
         label_list = list()
         for index in data_name:
-            if phase == 'train':
-                f = open('/home/zzr/Data/pancreas/script/classify/train.txt', 'r')
-            else:
-                f = open('/home/zzr/Data/pancreas/script/classify/test.txt', 'r')
-            img_ = nib.load(os.path.join(train_data_path, index))
+            # if phase == 'train':
+            #     f = open('/home/zzr/Data/pancreas/script/classify/train.txt', 'r')
+            # else:
+            #     f = open('/home/zzr/Data/pancreas/script/classify/test.txt', 'r')
+            img_ = nib.load(os.path.join(data_path, index))
             img = img_.get_fdata()
-            #
-            seg_ = nib.load(os.path.join(train_seg_path, index))
+            # #
+            seg_ = nib.load(os.path.join(seg_path, index))
             seg = seg_.get_fdata()
-            for line in f.readlines():
-                line = line.strip()
-                name = line.split(' ')[0]
-                if name == index:
-                    label = int(line.split(' ')[-1])
-                    # print label
-                    if label == 1:
-                        label = [0, 1]
-                    else:
-                        label = [1, 0]
-                    break
+            # for line in f.readlines():
+            #     line = line.strip()
+            #     name = line.split(' ')[0]
+            #     if name == index:
+            #         label = int(line.split(' ')[-1])
+            #         # print label
+            #         if label == 1:
+            #             label = [0, 1]
+            #         else:
+            #             label = [1, 0]
+            #         break
 
             try:
                 img_aug, seg_aug = data_augmentation(img, seg, flip=flip, rotate=rotate, affine=affine)
@@ -81,7 +82,7 @@ def data_generator(train_data_path, train_seg_path, data_name, batch_size=1, fli
             # seg = to_categorical(seg, num_classes=2)
             x_list.append(img)
             y_list.append(seg)
-            label_list.append(label)
+            # label_list.append(label)
             if len(x_list) == batch_size:
                 yield convert_data(x_list, y_list, label_list)  # generator
                 x_list = list()
@@ -107,4 +108,4 @@ def convert_data(x_list, y_list, label_list):
     x_list = np.expand_dims(x_list, -1)
     x = np.asarray(x_list)
     y = np.asarray(y_list)
-    return x, [y, y, y]  # multi outputs
+    return x, [y]  # multi outputs

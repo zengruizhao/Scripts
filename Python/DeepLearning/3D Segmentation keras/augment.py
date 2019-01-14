@@ -35,7 +35,8 @@ def data_augmentation(img, seg, flip=False, rotate=False, affine=False):
 
 
 def affine_transformation(image, mask, alpha_affine, random_state=None):
-    """Elastic deformation of images as described in [Simard2003]_ (with modifications).
+    """
+    Elastic deformation of images as described in [Simard2003]_ (with modifications).
     .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
          Convolutional Neural Networks applied to Visual Document Analysis", in
          Proc. of the International Conference on Document Analysis and
@@ -66,7 +67,7 @@ def affine_transformation(image, mask, alpha_affine, random_state=None):
 def random_flip_dimensions(n_dimensions):
     axis = list()
     for dim in range(n_dimensions):
-        if dim != 2:    # dont flip z
+        if dim != 10:    # flip z
             continue
         else:
             if random_boolean():
