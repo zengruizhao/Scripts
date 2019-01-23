@@ -1,4 +1,4 @@
-function [outputvolume,standardization_map] = int_stdn_landmarks(inputvolume,templatevolume,varargin)
+function [outputvolume, standardization_map] = int_stdn_landmarks(inputvolume, templatevolume, varargin)
 %[OUTPUTVOLUME,STANDARDIZATION_MAP] = int_stdn_landmarks(INPUTVOLUME,TEMPLATEVOLUME,OPTIONS)
 %Landmark-based Intensity Standardization
 %Scales data piecewise to a template, using histogram landmarks at every 10th percentile
@@ -59,21 +59,21 @@ else
 end
 
 if ~isfield(options,'temcancermasks')
-    disp('No cancer masks for template data.');    
+%     disp('No cancer masks for template data.');    
 	temcancermasks = [];
 else 
     temcancermasks = options.temcancermasks;
 end
 
 if ~isfield(options,'incancermasks')
-    disp('No cancer masks for input non-standardized data.'); 
+%     disp('No cancer masks for input non-standardized data.'); 
 	incancermasks = [];
 else
     incancermasks = options.incancermasks;
 end
 
 if ~isfield(options,'numstdtopclip')
-    disp('Data values WILL be top-clipped (improves contrast).'); 
+%     disp('Data values WILL be top-clipped (improves contrast).'); 
 	numstdtopclip = 5;      
 else
     numstdtopclip = options.numstdtopclip;
@@ -83,7 +83,7 @@ if logical(numstdtopclip) && logical(~exist('topclip','file'))
 end 
 
 if ~isfield(options,'numstdbotclip')
-    disp('Data values WILL NOT be bottom-clipped.'); 
+%     disp('Data values WILL NOT be bottom-clipped.'); 
 	numstdbotclip = 0;
 else
     numstdbotclip = options.numstdbotclip;
@@ -112,22 +112,27 @@ if ~isfield(options,'docheck')
 else
     docheck = options.docheck;
 end
+if ~isfield(options,'rescaleMax')
+    rescaleMax = 4095;
+else
+    rescaleMax = options.rescaleMax;
+end
 
 checkifInt = find(inputvolume); checkifInt = inputvolume(checkifInt(1));
 if ceil(checkifInt) ~= floor(checkifInt)    
-    disp('Rounding non-integer values in INPUTVOLUME');
+%     disp('Rounding non-integer values in INPUTVOLUME');
     inputvolume = round(inputvolume);
 end
 checkifInt = find(templatevolume); checkifInt = templatevolume(checkifInt(1));
 if ceil(checkifInt) ~= floor(checkifInt)
-    disp('Rounding non-integer values in TEMPLATEVOLUME');
+%     disp('Rounding non-integer values in TEMPLATEVOLUME');
     templatevolume = round(templatevolume);
 end
 
 %Linear rescaling of intensity ranges
 if dorescale
-    inputvolume = round(rescale_range(inputvolume,0,4095));
-    templatevolume = round(rescale_range(templatevolume,0,4095));
+    inputvolume = round(rescale_range(inputvolume, 0, rescaleMax));
+    templatevolume = round(rescale_range(templatevolume, 0, rescaleMax));
 end
 
 %Sorting,vectorizing
@@ -135,8 +140,8 @@ inputdata=sort(inputvolume(:));
 templatedata=sort(templatevolume(:));
 
 %Histograms
-plotdist(templatedata,'b');title('Smoothed histogram of standard dataset');hold on;
-plotdist(inputdata,'r');title('Smoothed histograms: Std (blue), Non-std (red)');hold off;
+% plotdist(templatedata,'b');title('Smoothed histogram of standard dataset');hold on;
+% plotdist(inputdata,'r');title('Smoothed histograms: Std (blue), Non-std (red)');hold off;
 
 %Does it really need standardization?
 if docheck
@@ -157,7 +162,7 @@ if docheck
         error('Cancel pressed.');    
     end
 else
-    disp('Doing standardization, no questions asked!');
+%     disp('Doing standardization, no questions asked!');
 end
 %Remove zeros
 inputdata(inputdata<=zeroval)=[];
@@ -178,42 +183,41 @@ if length(find(size(templdata_forlm)-1)) > 1
 end
 
 %Find landmarks at every 10th percentile
-inputvol_lm = prctile(indata_forlm,(10:10:90));
-templvol_lm = prctile(templdata_forlm,(10:10:90));
-landmarks = [inputvol_lm',templvol_lm'];
+inputvol_lm = prctile(indata_forlm, (10:10:90));
+templvol_lm = prctile(templdata_forlm, (10:10:90));
+landmarks = [inputvol_lm', templvol_lm'];
 
 %Calculate standardization_map
-standardization_map = calcstdnmap(inputdata,templatedata,landmarks);
+standardization_map = calcstdnmap(inputdata, templatedata, landmarks);
 
 %Apply standardization_map to standardize the inputvolume
-outputvolume = applystdnmap(inputvolume,standardization_map);
+outputvolume = applystdnmap(inputvolume, standardization_map);
 
 %Clip outliers coz they mess up the image
 if logical(numstdtopclip)
     outputdata=sort(outputvolume(:));outputdata(outputdata<=zeroval)=[];
-    if ~isempty(find(outputvolume > median(outputdata)+numstdtopclip*std(outputdata)))
-        disp('Clipping a little to improve contrast..')
+    if ~isempty(find(outputvolume > median(outputdata)+numstdtopclip*std(outputdata), 1))
+%         disp('Clipping a little to improve contrast..')
         outputvolume = topclip(outputvolume,[],numstdtopclip);
         if logical(numstdbotclip)
-            if ~isempty(find(outputvolume < median(outputdata)-numstdbotclip*std(outputdata)))
+            if ~isempty(find(outputvolume < median(outputdata)-numstdbotclip*std(outputdata), 1))
                 outputvolume = botclip(outputvolume,[],numstdbotclip);
             end
         end
         %outputdata=sort(outputvolume(:));outputdata(outputdata==0)=[];
     end
 end
-
-%Compare side by side - images, histograms
-figure;
-if size(inputvolume,3) > 1, dispimg3(inputvolume); else imdisp(inputvolume); end %%%%%%%dispimg3, dispimg
-title('Original non-standardized data');
-figure;
-if size(outputvolume,3) > 1, dispimg3(outputvolume); else imdisp(outputvolume); end
-title('Newly standardized data');
-
-figure;
-plotdist(templatedata,'b');title('Smoothed histogram of standard dataset');hold on;
-plotdist(outputvolume,'r');title('Smoothed histograms: Std (blue), Standardized (red)');hold off;
+%% Compare side by side - images, histograms
+% figure;
+% if size(inputvolume,3) > 1, dispimg3(inputvolume); else, imdisp(inputvolume); end %%%%%%%dispimg3, dispimg
+% title('Original non-standardized data');
+% figure;
+% if size(outputvolume,3) > 1, dispimg3(outputvolume); else, imdisp(outputvolume); end
+% title('Newly standardized data');
+% 
+% figure;
+% plotdist(templatedata,'b');title('Smoothed histogram of standard dataset');hold on;
+% plotdist(outputvolume,'r');title('Smoothed histograms: Std (blue), Standardized (red)');hold off;
 % if docheck, pause; end;
 
 % IntStdnOk = questdlg('Is the intensity standardization ok (check histogram & images)?','Intensity Standardization ok?','Yes');
@@ -224,8 +228,7 @@ plotdist(outputvolume,'r');title('Smoothed histograms: Std (blue), Standardized 
 %     disp('Problem doing automated standardization, check code.');
 %     keyboard;
 % else
-disp('Standardization complete.');
+% disp('Standardization complete.');
 % end
-
 end
 

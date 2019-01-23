@@ -9,7 +9,7 @@ import pydicom
 from UselessBackgroundRemoving import pathExist
 
 
-path = '/media/zzr/My Passport/TCIA'
+path = '/home/zzr/Data/pancreas/script/models/TCIA'
 All_case = sorted(os.listdir(os.path.join(path, 'Pancreas-CT')))
 mask_list = sorted(os.listdir(os.path.join(path, 'label'))[::-1])
 for idx, case in enumerate(All_case):

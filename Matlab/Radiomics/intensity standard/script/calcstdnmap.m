@@ -1,4 +1,4 @@
-function [standardization_map] = calcstdnmap(indata,templdata,landmarks)
+function [standardization_map] = calcstdnmap(indata, templdata, landmarks)
 %[STANDARDIZATION_MAP] = calcstdnmap(INDATA,TEMPLDATA)
 %Calculate standardization map for landmark-based intensity standardization
 %INDATA AND TEMPLDATA must be vectors

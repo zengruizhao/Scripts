@@ -14,6 +14,7 @@ import cv2
 import scipy.io as mat
 import shutil
 import nrrd
+import scipy.io as sio
 
 
 def copy_file():#copy files from one path to another path
@@ -165,16 +166,22 @@ def rotate():
 
 
 def elastic_deformation():
-    img_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/image'
-    mask_path = '/media/zzr/Data/Task07_Pancreas/TCIA/caffe_data/label'
+    img_path = '/media/zzr/Data/Task07_Pancreas/TCIA/preprocess/img'
+    mask_path = '/media/zzr/Data/Task07_Pancreas/TCIA/preprocess/label'
     img = os.path.join(img_path, 'PANCREAS_0001.nii.gz')
     mask = os.path.join(mask_path, 'PANCREAS_0001.nii.gz')
     img, affine_img = read_nii(img)
     mask, affine_mask = read_nii(mask)
-    outImage, outMask = elastic_transform(img, mask, img.shape[1] * 0.03)
-    print np.unique(outMask)
-    save_nii(outImage, affine_img, os.path.join('/home/zzr/Data/pancreas', 'image.nii.gz'))
-    save_nii(outMask, affine_mask, os.path.join('/home/zzr/Data/pancreas', 'label.nii.gz'))
+    # img, mask = elastic_transform(img, mask, img.shape[1] * 0.03)
+    img = gussian_noise(img)
+    print np.unique(mask)
+    save_nii(img, affine_img, os.path.join('/home/zzr/Data/pancreas', 'image.nii.gz'))
+    save_nii(mask, affine_mask, os.path.join('/home/zzr/Data/pancreas', 'label.nii.gz'))
+
+
+def gussian_noise(image):
+    gussian = np.random.normal(0., 0.1, image.shape)
+    return np.add(image, gussian)
 
 
 def elastic_transform(image, mask, alpha_affine, random_state=None):
@@ -242,10 +249,10 @@ def copy_folder():
 
 def pnet_ct():  # dicom2nii
     path = '/media/zzr/My Passport/430/CT/CT_PNET'
-    out_path = '/media/zzr/My Passport/430/CT/Preprocess_CT1'
+    out_path = '/media/zzr/My Passport/430/CT/Preprocess_CT2'
     lack = []
     for idx, case in enumerate(os.listdir(path)):
-        if idx == 31:
+        if idx == 0:
             # print case
             print idx
             case_path = os.path.join(path, case)
@@ -262,9 +269,8 @@ def pnet_ct():  # dicom2nii
                         affine = label_options['space directions']
                         spaceOrigin = np.append(np.array(label_options['space origin']), 1)
                         affine = np.row_stack((affine, np.zeros([1, 3])))
-                        # affine = np.column_stack((affine, np.reshape([0, 0, 0, 1], [4, 1])))
-                        affine = np.column_stack((affine, np.reshape(spaceOrigin, [4, 1])))
-                        # affine = np.column_stack((affine, np.reshape(spaceOrigin.append(1), [4, 1])))
+                        affine = np.array(np.column_stack((affine, np.reshape([0, 0, 0, 1], [4, 1]))), np.float32)
+                        # affine = np.fabs(np.array(np.column_stack((affine, np.reshape(spaceOrigin, [4, 1]))), np.float32))
                         dicom_slice = []
                         for img in dicom_file:
                             dicom_slice.append(int(img.split('.')[0]))
@@ -288,6 +294,8 @@ def pnet_ct():  # dicom2nii
                             try:  # Prevent missing dicom file
                                 # DATA[..., dicom.InstanceNumber - 1] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
                                 # DATA[..., dicom_slice.index(int(img.split('.')[0]))] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+                                # plt.imshow(data)
+                                # plt.show()
                                 DATA[..., dicom_slice.index(int(img.split('.')[0]))] = np.transpose(data)
                             except IndexError:
                                 pass
@@ -312,11 +320,11 @@ def pnet_mri():  # dicom2nii
     out_path = '/media/zzr/My Passport/430/MRI/Preprocess1_MRI'
     lack = []
     for idx, case in enumerate(os.listdir(path)):
-        if idx >= 0:
+        if idx == 0:
             print idx, case
             case_path = os.path.join(path, case)
             for idxx, phase in enumerate(os.listdir(case_path)):
-                if idxx >= 0:
+                if idxx == 0:
                     # print phase
                     phase_path = os.path.join(case_path, phase)
                     dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
@@ -341,7 +349,7 @@ def pnet_mri():  # dicom2nii
                             for img in dicom_file:
                                 dicom = pydicom.read_file(os.path.join(phase_path, img))
                                 try:
-                                    data = dicom.pixel_array
+                                    data = dicom.pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
                                 except AttributeError:
                                     data = np.zeros_like(data)
                                     print '*' * 10, 'AttributeError'
@@ -486,18 +494,42 @@ def dicomInformation():
 
 
 def show_img():
-    path = '/media/zzr/Data/Task07_Pancreas/Game/preprocess1/img'
-    for i in os.listdir(path):
+    path = '/media/zzr/Data/Task07_Pancreas/Game/preprocess/img'
+    imageAll = [i for i in sorted(os.listdir(path)) if i.endswith('nii.gz')]
+    for i in imageAll:
+        print i
         img = nib.load(os.path.join(path, i))
-        # print img.affine
         img = img.get_fdata()
-        # print np.unique(img)
+        print np.max(img), np.min(img)
+        print img.shape
+        arr = img.flatten()
+        plt.hist(arr)
+        plt.show()
+        # for j in xrange(img.shape[-1]):
+        #     print j
+        #     plt.imshow(img[:, :, j])
+        #     # mngr = plt.get_current_fig_manager()
+        #     # mngr.window.SetGeometry(0, 0, 500, 500)
+        #     plt.show()
+
+
+def dicomread():
+    path = '/home/zzr/Data/pancreas/script/models/TCIA/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667'
+    for i in sorted(os.listdir(path)):
+        print i
+        dicom = pydicom.read_file(os.path.join(path, i))
+        print dicom.InstanceNumber
+        plt.imshow(dicom.pixel_array)
+        plt.show()
+
+
+def mat2nii():
+    path = '/media/zzr/My Passport/430/MRI/BiasFieldCorrection1/03534455_WANG YONG SHENG_MR'
+    for i in os.listdir(path):
+        img = sio.loadmat(os.path.join(path, i))['img']
         print img.shape
         for j in xrange(img.shape[-1]):
-            print j
-            plt.imshow(img[:, :, j])
-            # mngr = plt.get_current_fig_manager()
-            # mngr.window.SetGeometry(0, 0, 500, 500)
+            plt.imshow(img[..., j])
             plt.show()
 
 
@@ -521,3 +553,5 @@ if __name__ == '__main__':
     # dicom_spacing()
     # dicomInformation()
     show_img()
+    # dicomread()
+    # mat2nii()

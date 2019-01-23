@@ -18,12 +18,12 @@ warnings.filterwarnings('ignore')
 import matplotlib.pyplot as plt
 
 img_WSI_dir = '/media/zzr/Data/skin_xml/original_new/RawImage/'
-fore_path = '//media/zzr/SW/Skin_xml/Patch/'
+fore_path = '/media/zzr/SW/Skin_xml/Patch/'
 # Parameters
-nProcs = 8  # the number of process
-stride = 36  # set stride 36
-using_level = 1  # 0: max level; 1
-patch_size = (144, 144)     # 144
+nProcs = 4  # the number of process
+stride = 2048  # set stride 36
+using_level = 0  # 0: max level; 1
+patch_size = (2048, 2048)     # 144
 
 
 def get_bbox(cont_img, rgb_image=None):

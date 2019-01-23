@@ -16,7 +16,7 @@ from keras.layers.advanced_activations import PReLU, ReLU
 from keras.layers.convolutional import ZeroPadding3D
 from keras.constraints import max_norm
 import tensorflow as tf
-
+from non_local import non_local_block
 l2_ratio = 1e-4
 dropout_ratio = 0.5
 
@@ -1132,7 +1132,6 @@ def best_79(shape, classes=2):
     :return:
     """
     inputs = Input(shape)
-    # x = CoordinateChannel3D()(inputs)
     conv1 = conv3d_relu_gn_dilation(inputs, filters=32)
     # conv1 = res_block(conv1, number=1, filters=32)
     conv1 = conv3d_relu_gn_dilation(conv1, filters=32)
@@ -1701,9 +1700,11 @@ def standard_unit(input_tensor, stage, nb_filter, kernel_size=3):
     x = Conv3D(nb_filter, kernel_size, activation='relu', name='conv'+stage+'_1',
                padding='same', kernel_regularizer=l2(l2_ratio))(input_tensor)
     x = GroupNormalization(groups)(x)
+    # x = Dropout(dropout_ratio)(x)
     x = Conv3D(nb_filter, kernel_size, activation='relu', name='conv'+stage+'_2',
                padding='same', kernel_regularizer=l2(l2_ratio))(x)
     x = GroupNormalization(groups)(x)
+    # x = Dropout(dropout_ratio)(x)
 
     return x
 
@@ -1728,7 +1729,7 @@ def jaccard_loss(y_true, y_pred):
 
 
 def dice_coef_loss(y_true, y_pred):
-    return -dice_coef(y_true, y_pred)  # + 0.5 * smoothness_loss_mine(y_true, y_pred)
+    return - dice_coef(y_true, y_pred)  # + 0.5 * smoothness_loss_mine(y_true, y_pred)
 
 
 def tversky_loss(y_true, y_pred):

@@ -11,7 +11,7 @@ from UselessBackgroundRemoving import pathExist
 def arg_parse():
     parse = argparse.ArgumentParser()
     parse.add_argument('--imgPath', type=str, default='/media/zzr/Data/Task07_Pancreas/TCIA/crop/crop_img')
-    parse.add_argument('--segPath', type=str, default='/media/zzr/Data/Task07_Pancreas/TCIA/crop/crop_label',
+    parse.add_argument('--segPath', type=str, default=None,
                        help='if one does not have label, set on None')
     parse.add_argument('--outImgPath', type=str, default='/media/zzr/Data/Task07_Pancreas/TCIA/preprocess1/img')
     parse.add_argument('--outLabelPath', type=str, default='/media/zzr/Data/Task07_Pancreas/TCIA/preprocess1/label')
@@ -36,7 +36,7 @@ def img_reslice(img_data, img_affine, img_zoom, new_zooms=(1., 1., 1.)):
 
 
 # delete slice of no label
-def delete_slice(img_path,seg_path):
+def delete_slice(img_path, seg_path):
     img_names = os.listdir(img_path)
     img_names = [i for i in img_names if '.nii' in i]
     for img_name in img_names:
@@ -94,8 +94,8 @@ def img_resize(image, new_shape, interpolation="nearest"):
     :return:
     """
     input_shape = np.asarray(image.shape, dtype=np.float16)
-    ras_image = reorder_img(image, resample=interpolation)
-    # ras_image = image
+    # ras_image = reorder_img(image, resample=interpolation)
+    ras_image = image
     output_shape = np.asarray(new_shape)
     new_spacing = input_shape/output_shape
     new_affine = np.copy(ras_image.affine)
@@ -118,7 +118,7 @@ def process_data(arg):
             img_data = img.get_fdata()
             # img_data, img_affine = img_reslice(img_data, img_affine, img_zoom, new_zooms=(1., 1., 1.))
             img_data = np.clip(img_data, arg.wMinimum, arg.wMaximum)
-            img_data = normalize_image(img_data)
+            # img_data = normalize_image(img_data)
             img_data = (img_data - np.mean(img_data)) / np.std(img_data)
             img_data = img_resize(nib.Nifti1Image(img_data, img_affine), arg.targetShape, arg.interpolation)
             # seg处理
@@ -126,7 +126,7 @@ def process_data(arg):
                 seg = nib.load(os.path.join(arg.segPath, img_name))
                 # seg_zoom = img.header.get_zooms()[:3]
                 seg_affine = seg.affine
-                seg_data = seg.get_data()
+                seg_data = seg.get_fdata()
                 # seg_data, seg_affine = img_reslice(seg_data, seg_affine, seg_zoom, new_zooms=(1., 1., 1.))
                 seg_data[seg_data > 0] = 1  # only pancreas
                 seg_data = img_resize(nib.Nifti1Image(seg_data, seg_affine), arg.targetShape, arg.interpolation)

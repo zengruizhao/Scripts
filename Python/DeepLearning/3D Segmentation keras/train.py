@@ -1,11 +1,9 @@
 import math
 import os
 from functools import partial
-
 from keras import backend as K
-from keras.callbacks import ModelCheckpoint, CSVLogger, Callback, LearningRateScheduler, EarlyStopping, TensorBoard
+from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, EarlyStopping, TensorBoard, ProgbarLogger
 from keras.models import load_model
-
 from generator import get_training_and_testing_generators
 from config import config
 from model import light_resnet, deconv_conv_unet_model_3d_coordconv_gn_deep, best_79, Nest_Net
@@ -39,6 +37,7 @@ def get_callbacks():
                                  baseline=0.8,
                                  filepath=os.path.join(config['checkPoint'], config['modelSave']))
     tensorboard = TensorBoard(config['tensorBoard'], write_graph=True, write_images=True)
+    # progbarlogger = ProgbarLogger(count_mode='steps', stateful_metrics=['dice_coef'])
 
     return [model_checkpoint, logger, scheduler, tensorboard, earlystoping]
 
@@ -59,7 +58,7 @@ def main():
     model = Nest_Net(shape=config['image_shape'], classes=2)
     model.summary()     # print model
     # plot_model(model, to_file='model.png')
-    # model.load_weights('/home/zzr/Data/pancreas/script/models/best.h5')
+    # model.load_weights('/home/zzr/Data/pancreas/script/models/pancreas_weights.020.h5')
     # get training and testing generators
     train_generator, nb_train_samples, testing_generator, \
         nb_testing_samples = get_training_and_testing_generators(train_data_path=config["train_data_path"],

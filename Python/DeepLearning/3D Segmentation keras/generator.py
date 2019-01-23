@@ -14,10 +14,11 @@ def get_training_and_testing_generators(train_data_path, train_seg_path, batch_s
                                         train_seg_path,
                                         train_data_name,
                                         batch_size=batch_size,
-                                        flip=True,
+                                        flip=False,
                                         rotate=True,
                                         affine=True,
-                                        phase='train')
+                                        phase='train',
+                                        noise=True)
     # Set the number of training and testing samples per epoch correctly
     nb_training_samples = len(train_data_name)
     test_img_path = config["test_img_path"]
@@ -29,7 +30,8 @@ def get_training_and_testing_generators(train_data_path, train_seg_path, batch_s
                                        flip=False,
                                        rotate=False,
                                        affine=False,
-                                       phase='test')
+                                       phase='test',
+                                       noise=False)
     nb_testing_samples = len(os.listdir(test_img_path))
     return training_generator, nb_training_samples//batch_size, testing_generator, nb_testing_samples//batch_size
 
@@ -44,7 +46,7 @@ def split_list(input_list, split=0.8, shuffle_list=True):
 
 
 def data_generator(data_path, seg_path, data_name, batch_size=1,
-                   flip=False, rotate=False, affine=False, phase='train'):
+                   flip=False, rotate=False, affine=False, phase='train', noise=False):
     while True:
         np.random.shuffle(data_name)
         x_list = list()
@@ -73,7 +75,7 @@ def data_generator(data_path, seg_path, data_name, batch_size=1,
             #         break
 
             try:
-                img_aug, seg_aug = data_augmentation(img, seg, flip=flip, rotate=rotate, affine=affine)
+                img_aug, seg_aug = data_augmentation(img, seg, flip, rotate, affine, noise)
                 assert len(np.unique(seg_aug)) == 2, 'wrong label'
                 img, seg = img_aug, seg_aug
             except AssertionError:

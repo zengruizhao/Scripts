@@ -42,9 +42,9 @@ def main():
                 if not os.path.exists(out):
                     os.makedirs(out)
                 name = str(patch_idx) + '_' + str(idx) + '.jpg'
-                cv2.imwrite(os.path.join(out, name), cell)
-                # plt.imshow(cell)
-                # plt.show()
+                # cv2.imwrite(os.path.join(out, name), cell)
+                plt.imshow(cell)
+                plt.show()
 
 
 if __name__ == '__main__':

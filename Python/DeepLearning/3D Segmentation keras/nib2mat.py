@@ -64,11 +64,12 @@ def nib2mat_all_wholeimage():
     path = '/media/zzr/My Passport/430/MRI/Preprocess_MRI'
     out_path = '/media/zzr/My Passport/430/MRI/MRI_PNET_Mat_Raw'
     for idxx, case in enumerate(os.listdir(path)):
-        if idxx >= 0:
+        if idxx == 90:
             print idxx, case
             case_file = os.path.join(path, case)
             img_file = [i for i in os.listdir(case_file) if 'img' in i]
             img_file = [i for i in img_file if 'T1' in i or 'T2' in i]
+            img_file = [i for i in img_file if 'T1' in i]
             # label_file = [i for i in os.listdir(case_file) if 'label' in i]
             for idx, i in enumerate(img_file):
                 # if idx == 2:

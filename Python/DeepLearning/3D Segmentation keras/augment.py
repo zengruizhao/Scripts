@@ -6,7 +6,7 @@ from PIL import Image
 import cv2
 
 
-def data_augmentation(img, seg, flip=False, rotate=False, affine=False):
+def data_augmentation(img, seg, flip=False, rotate=False, affine=False, noise=False):
     """
     :param img:
     :param seg:
@@ -23,14 +23,19 @@ def data_augmentation(img, seg, flip=False, rotate=False, affine=False):
     if flip_axis:
         img = flip_image(img, flip_axis)
         seg = flip_image(seg, flip_axis)
+
     if rotate:
-        angle = np.random.randint(-5, 6)
-        img = rotate_image(img, angle)
-        seg = rotate_image(img, angle)
+        if random_boolean():
+            angle = np.random.randint(-20, 21)
+            img = rotate_image(img, angle)
+            seg = rotate_image(img, angle)
+
     if affine:
         if random_boolean():
             img, seg = affine_transformation(img, img, img.shape[1] * 0.03, random_state=None)
-
+    if noise:
+        if random_boolean():    # add guassian noise
+            img = np.add(img, np.random.normal(0., 0.1, img.shape))
     return img, seg
 
 

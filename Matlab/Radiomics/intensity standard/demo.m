@@ -5,4 +5,6 @@ addpath(genpath('/media/zzr/Data/git/code/trunk/matlab/general'));
 addpath(genpath('/media/zzr/Data/git/code/trunk/matlab/images'));
 templatevolume = V_img{2};
 inputvolume = V_img{2};
-[outputvolume,standardization_map] = int_stdn_landmarks(inputvolume,templatevolume);
+options.docheck = false;
+options.rescaleMax = 2000;
+[outputvolume, ~] = int_stdn_landmarks(inputvolume,templatevolume, options);
