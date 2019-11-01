@@ -16,14 +16,14 @@ sys.path.insert(0, caffe_root + 'python')
 warnings.filterwarnings('ignore')
 
 
-deploy = '/home/zzr/Data/Skin/script_all/resnet/ResNet-50-deploy_deploy.prototxt'
+deploy = '/home/zzr/Data/Skin/script_all/resnet/old/ResNet-50-deploy_deploy.prototxt'
 mean = '/home/zzr/Data/Skin/script_all/train_mean_lmdb.npy'
-model = '/home/zzr/Data/Skin/script_all/resnet/model/_iter_100000.caffemodel'
-save_file = '/media/zzr/Data/skin_xml/mask_result/'
+model = '/home/zzr/Data/Skin/script_all/resnet/old/model/_iter_100000.caffemodel'
+save_file = '/media/zzr/Data/skin_xml/phase2/mask/'
 # labels = ['背景', '表皮', '真皮', '脂肪', '毛囊', '汗腺']
 labels = ['表皮', '真皮', '脂肪', '汗腺', '背景', '毛囊']
 stride = 36
-img_path = '/media/zzr/Data/skin_xml/original_new/2018-07-30 161045'
+img_path = '/media/zzr/Data/skin_xml/phase2/patch/2019-02-28 154402'
 
 
 def caffe_init():
@@ -90,7 +90,7 @@ def main():
 
         x, y = [], []
 
-    np.save(save_file + 'Result_new_lowlevel.npy', mask)
+    np.save(save_file + 'lowlevel.npy', mask)
     print time.time() - start
 
 

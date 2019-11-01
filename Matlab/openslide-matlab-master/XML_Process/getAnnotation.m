@@ -5,6 +5,7 @@ function annotation = getAnnotation(xmlFile)
 %%%%%%%%%%%%%
 
 xDoc = xmlread(xmlFile);
+theStruct = parseChildNodes(xDoc);
 Regions = xDoc.getElementsByTagName('Region');
 
 annotation = [];

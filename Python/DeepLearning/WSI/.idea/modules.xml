@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/WSI.iml" filepath="$PROJECT_DIR$/.idea/WSI.iml" />
+      <module fileurl="file://$USER_HOME$/git/roc_comparison/.idea/roc_comparison.iml" filepath="$USER_HOME$/git/roc_comparison/.idea/roc_comparison.iml" />
     </modules>
   </component>
 </project>

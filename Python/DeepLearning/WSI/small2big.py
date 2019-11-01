@@ -8,9 +8,9 @@ from creatXML_ASAP_boundary import creat_xml
 import cv2
 import os
 
-small = np.load('/media/zzr/Data/skin_xml/mask_result/cd3.npy')
-xmlout = '/media/zzr/Data/skin_xml/mask_result/cd3/'
-img_WSI_dir = '/media/zzr/Data/skin_xml/original_new/RawImage'
+small = np.load('/media/zzr/Data/skin_xml/phase2/mask/lowlevel.npy')
+xmlout = '/media/zzr/Data/skin_xml/phase2/mask/'
+img_WSI_dir = '/home/zzr/Desktop/'
 color = np.array([[255, 0, 0],   # 表皮
                   [0, 255, 0],   # 真皮
                   [0, 0, 255],   # 脂肪
@@ -141,7 +141,7 @@ def small2big_new():  #
             big[(stride * i):stride * (i + 1), (stride * j):stride * (j + 1), 1] = color[int(order), 1]
             big[(stride * i):stride * (i + 1), (stride * j):stride * (j + 1), 2] = color[int(order), 2]
     print 'done'
-    io.imsave('/media/zzr/Data/skin_xml/mask_result/cd3.png', big.astype(np.float)/255)
+    io.imsave('/media/zzr/Data/skin_xml/phase2/mask/mask.png', big.astype(np.float)/255)
 
 
 if __name__ == '__main__':

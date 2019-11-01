@@ -6,7 +6,7 @@ import pydicom
 import numpy as np
 import os
 import h5py
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import nibabel as nib
 from PIL import Image
 import time
@@ -15,6 +15,7 @@ import scipy.io as mat
 import shutil
 import nrrd
 import scipy.io as sio
+import zipfile
 
 
 def copy_file():#copy files from one path to another path
@@ -316,21 +317,24 @@ def pnet_ct():  # dicom2nii
 
 
 def pnet_mri():  # dicom2nii
-    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
-    out_path = '/media/zzr/My Passport/430/MRI/Preprocess1_MRI'
+    path = '/media/zzr/My Passport/newMRI/Raw'
+    out_path = '/media/zzr/My Passport/newMRI/preprocess'
     lack = []
     for idx, case in enumerate(os.listdir(path)):
-        if idx == 0:
+        if idx == 1:
             print idx, case
             case_path = os.path.join(path, case)
             for idxx, phase in enumerate(os.listdir(case_path)):
-                if idxx == 0:
+                if idxx >= 0:
                     # print phase
                     phase_path = os.path.join(case_path, phase)
                     dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
-                    label_file = [i for i in os.listdir(phase_path) if i.endswith('nrrd')]
+                    label_file = [i for i in os.listdir(phase_path) if i.endswith('zip')]
                     if label_file:
                         for i in label_file:
+                            z = zipfile.ZipFile(os.path.join(phase_path, i), 'r')
+                            z.extractall(phase_path)
+                            i = i[:-4]
                             label_data, label_options = nrrd.read(os.path.join(phase_path, i))
                             label_data[label_data == 6] = 1
                             affine = generateAffine(label_options)
@@ -343,13 +347,16 @@ def pnet_mri():  # dicom2nii
                                     indexx = int(temp)
                                 dicom_slice.append(indexx)
 
-                            dicom_slice = sorted(dicom_slice)
+                            sorted(dicom_slice)
                             dicom = pydicom.read_file(os.path.join(phase_path, img))
                             DATA = np.zeros([dicom.Columns, dicom.Rows, len(dicom_file)])
                             for img in dicom_file:
+                                data = np.zeros_like(np.squeeze(label_data[..., 0]))
                                 dicom = pydicom.read_file(os.path.join(phase_path, img))
                                 try:
-                                    data = dicom.pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
+                                    data = dicom.pixel_array
+                                    # data = dicom.pixel_array * dicom.RescaleSlope + dicom.RescaleIntercept
+
                                 except AttributeError:
                                     data = np.zeros_like(data)
                                     print '*' * 10, 'AttributeError'
@@ -367,8 +374,10 @@ def pnet_mri():  # dicom2nii
                                     # else:
                                     #     indexx = int(temp)
                                     # DATA[..., dicom_slice.index(indexx)] = np.squeeze(np.transpose(data[..., None], (2, 1, 0)))
+
                                 except IndexError:
                                     pass
+
                             if not os.path.exists(os.path.join(out_path, case)):
                                 os.makedirs(os.path.join(out_path, case))
 
@@ -418,7 +427,7 @@ def temp():
         img_data = img.get_fdata()
         label = nib.load(os.path.join(path, label_file[idx]))
         label_data = label.get_fdata()
-        for j in xrange(img_data.shape[-1]):
+        for j in range(img_data.shape[-1]):
             fig, (ax1, ax2) = plt.subplots(1, 2)
             ax1.imshow(img_data[..., j])
             ax2.imshow(label_data[..., -1])
@@ -438,7 +447,7 @@ def pnet_ct_time():  # dicom2nii
     #         file.write(case + ' ' + dicom_time + '\n')
     data = []
     for idx, case in enumerate(os.listdir(path)):
-        print idx
+        print(idx)
         case_path = os.path.join(path, case)
         phase_path = os.path.join(case_path, os.listdir(case_path)[0])
         dicom_file = [i for i in os.listdir(phase_path) if i.endswith('dcm')]
@@ -446,7 +455,7 @@ def pnet_ct_time():  # dicom2nii
         dicom_time = str(int(dicom.AcquisitionDate))
         data.append(case + '+' + dicom_time)
 
-    mat.savemat('/media/zzr/My Passport/430/MRI/MRI_time1.mat', {'data': data})
+    mat.savemat('/media/zzr/My Passport/newMRI/MRI_time.mat', {'data': data})
 
 
 def dicom_spacing():  # dicom2nii
@@ -467,13 +476,13 @@ def dicom_spacing():  # dicom2nii
 
 
 def dicomInformation():
-    path = '/media/zzr/My Passport/430/MRI/MRI_PNET'
+    path = '/media/zzr/My Passport/newMRI/Raw'
     data = []
     for idx, case in enumerate(os.listdir(path)):
-        print idx
+        print(idx)
         case_path = os.path.join(path, case)
         for i in os.listdir(case_path):
-            nrrd = [j for j in os.listdir(os.path.join(case_path, i)) if j.endswith('nrrd') & ('T2' in j)]
+            nrrd = [j for j in os.listdir(os.path.join(case_path, i)) if j.endswith('nrrd') & ('T1' in j)]
             if nrrd:
                 dicom_file = [jj for jj in os.listdir(os.path.join(case_path, i)) if jj.endswith('dcm')]
                 dicom = pydicom.read_file(os.path.join(os.path.join(case_path, i), dicom_file[0]))
@@ -489,8 +498,9 @@ def dicomInformation():
                 manufacturer = str(dicom.Manufacturer)
                 data.append(case + '+' + spacing + '+' + rows + '+' + columns + '+'
                             + manufacturer + '+' + sliceThickness + '+' + sliceSpacing)
+                break
 
-    mat.savemat('/media/zzr/My Passport/430/MRI/T2Information.mat', {'data': data})
+    mat.savemat('/media/zzr/My Passport/newMRI/T1Information.mat', {'data': data})
 
 
 def show_img():
@@ -549,9 +559,13 @@ if __name__ == '__main__':
     # temp()
     # copy_folder()
     # pnet_mri()
-    # pnet_ct_time()
+    pnet_ct_time()
     # dicom_spacing()
     # dicomInformation()
-    show_img()
+    # show_img()
     # dicomread()
-    # mat2nii()
+    # # mat2nii()
+    # for root, dirs, files in os.walk('/media/zzr/My Passport/newMRI'):
+    #     for img in files:
+    #         if img.endswith('nrrd'):
+    #             print(os.path.join(root, img))

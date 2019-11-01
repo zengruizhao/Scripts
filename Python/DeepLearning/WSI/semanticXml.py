@@ -16,8 +16,8 @@ from xml.dom import minidom
 class SemanticXml:
     def __init__(self, thumbnail_mask, label, img_WSI_dir, name):
         self.stride = 36
-        self.using_level = 0
-        self.scale_ = 4
+        self.using_level = 1
+        self.scale_ = 4  # 4
         self.img_WSI_dir = img_WSI_dir
         self.name = name
         self.patch = (256, 256)
@@ -38,6 +38,11 @@ class SemanticXml:
         self.result = cv2.morphologyEx(result, cv2.MORPH_DILATE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
 
     def semantic2patch(self, patch_path):
+        """
+        Extract the patch of boundary
+        :param patch_path: the path of save
+        :return:
+        """
         contours = measure.find_contours(self.result, 0.5)
         casepath = os.path.join(self.img_WSI_dir, self.name)
         wsi = OpenSlide(casepath)
@@ -61,7 +66,7 @@ class SemanticXml:
         columns = np.where(self.result)[1]
         wsi = OpenSlide(os.path.join(self.img_WSI_dir, self.name))
         big = np.zeros((s_m * self.stride / self.scale_ + 256 / self.scale_,
-                    s_n * self.stride / self.scale_ + 256 / self.scale_, 3))
+                        s_n * self.stride / self.scale_ + 256 / self.scale_, 3))
         # get the original area
         for idx, i in enumerate(rows):
             print idx, '/', len(rows)
@@ -88,22 +93,24 @@ class SemanticXml:
         print 'semantic2whole done'
 
     def semantic2xml(self, resultFile=None, seg_path=None):
+        """
+
+        :param resultFile:
+        :param seg_path: the result of segnet
+        :return:
+        """
         s_m, s_n = self.result.shape
         self.result = hole_fill(remove_small_objects(self.result.astype(np.bool), 200))
         rows = np.where(self.result)[0]
         columns = np.where(self.result)[1]
-        wsi = OpenSlide(os.path.join(self.img_WSI_dir, self.name))
         big = np.zeros((s_m * self.stride / self.scale_ + 256 / self.scale_,
                         s_n * self.stride / self.scale_ + 256 / self.scale_))
         # get the original area
         for idx, i in enumerate(rows):
-            print idx, '/', len(rows)
-            img = np.array(wsi.read_region(
-                (columns[idx] * self.stride * 2 ** self.using_level, i * self.stride * 2 ** self.using_level),
-                self.using_level, (self.stride, self.stride)))[..., 0:-1]
-            resize_img = cv2.resize(img, (self.stride / self.scale_, self.stride / self.scale_))
+            # print idx, '/', len(rows)
             big[i * self.stride / self.scale_:(i + 1) * self.stride / self.scale_,
-            columns[idx] * self.stride / self.scale_:(columns[idx] + 1) * self.stride / self.scale_] = np.ones(resize_img.shape[0:-1])
+            columns[idx] * self.stride / self.scale_:(columns[idx] + 1) * self.stride / self.scale_] = np.ones([self.stride / self.scale_,
+                                                                                                               self.stride / self.scale_])
 
         # get rid of other area
         contours = measure.find_contours(self.result, 0.5)
@@ -122,44 +129,47 @@ class SemanticXml:
         # io.imsave('/media/zzr/Data/skin_xml/mask_result/tif/tif_3.png', big.astype(np.float))   # binary map
         contours = measure.find_contours(big, 0.5)
         # np.save('contours.npy', contours)
-        doc = minidom.Document()
-        ASAP_Annotation = doc.createElement("ASAP_Annotations")
-        doc.appendChild(ASAP_Annotation)
-        Annotations = doc.createElement("Annotations")
-        ASAP_Annotation.appendChild(Annotations)
-        for i in xrange(len(contours)):
-            Annotation = doc.createElement("Annotation")
-            Annotation.setAttribute("Name", "_" + str(i))
-            Annotation.setAttribute("Type", "Polygon")
-            Annotation.setAttribute("PartOfGroup", "None")
-            Annotation.setAttribute("Color", "#F4FA58")
-            Annotations.appendChild(Annotation)
-            Coordinates = doc.createElement("Coordinates")
-            Annotation.appendChild(Coordinates)
-            for j in range(len(contours[i])):
-                y = int(contours[i][j, 0] * self.scale_) * 2 ** self.using_level
-                x = int(contours[i][j, 1] * self.scale_) * 2 ** self.using_level
-                Coordinate1 = doc.createElement("Coordinate")
-                Coordinate1.setAttribute("Order", str(j))
-                Coordinate1.setAttribute("Y", str(y))
-                Coordinate1.setAttribute("X", str(x))
-                Coordinates.appendChild(Coordinate1)
+        if resultFile:
+            doc = minidom.Document()
+            ASAP_Annotation = doc.createElement("ASAP_Annotations")
+            doc.appendChild(ASAP_Annotation)
+            Annotations = doc.createElement("Annotations")
+            ASAP_Annotation.appendChild(Annotations)
+            for i in xrange(len(contours)):
+                Annotation = doc.createElement("Annotation")
+                Annotation.setAttribute("Name", "_" + str(i))
+                Annotation.setAttribute("Type", "Polygon")
+                Annotation.setAttribute("PartOfGroup", "None")
+                Annotation.setAttribute("Color", "#F4FA58")
+                Annotations.appendChild(Annotation)
+                Coordinates = doc.createElement("Coordinates")
+                Annotation.appendChild(Coordinates)
+                for j in range(len(contours[i])):
+                    y = int(contours[i][j, 0] * self.scale_) * 2 ** self.using_level
+                    x = int(contours[i][j, 1] * self.scale_) * 2 ** self.using_level
+                    Coordinate1 = doc.createElement("Coordinate")
+                    Coordinate1.setAttribute("Order", str(j))
+                    Coordinate1.setAttribute("Y", str(y))
+                    Coordinate1.setAttribute("X", str(x))
+                    Coordinates.appendChild(Coordinate1)
 
-        f = file(resultFile, "w")
-        doc.writexml(f)
-        f.close()
+            f = file(resultFile, "w")
+            doc.writexml(f)
+            f.close()
+
         print 'semantic2xml done'
+        return big
 
 
 def main():
-    thumbnail_mask = np.load('/media/zzr/Data/skin_xml/mask_result/tif.npy')
+    thumbnail_mask = np.load('/media/zzr/Data/skin_xml/phase2/mask/lowlevel.npy')
     semanticxml = SemanticXml(thumbnail_mask, label=0,
-                              img_WSI_dir='/media/zzr/Data/skin_xml/original_new/RawImage', name='test.svs')
-    # semanticxml.semantic2patch(patch_path='/media/zzr/Data/skin_xml/semantic/')
+                              img_WSI_dir='/home/zzr/Desktop', name='2019-02-28 15.44.02.ndpi')
+    # semanticxml.semantic2patch(patch_path='/media/zzr/Data/skin_xml/phase2/semantic/')
     # semanticxml.semantic2whole(mask_path='/media/zzr/Data/skin_xml/mask_result/tif',
     #                            seg_path='/media/zzr/Data/skin_xml/semantic_result/test.svs')
-    semanticxml.semantic2xml(resultFile='/media/zzr/Data/skin_xml/mask_result/tif/tif.xml',
-                             seg_path='/media/zzr/Data/skin_xml/semantic_result/test.svs')
+    semanticxml.semantic2xml(resultFile='/media/zzr/Data/skin_xml/phase2/mask/result.xml',
+                             seg_path='/media/zzr/Data/skin_xml/phase2/semantic/result')
 
 
 if __name__ == '__main__':

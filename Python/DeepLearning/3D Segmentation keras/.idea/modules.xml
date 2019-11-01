@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/3D Segmentation keras.iml" filepath="$PROJECT_DIR$/.idea/3D Segmentation keras.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../Pyradiomics/.idea/Pyradiomics.iml" filepath="$PROJECT_DIR$/../../Pyradiomics/.idea/Pyradiomics.iml" />
     </modules>
   </component>
 </project>

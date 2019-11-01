@@ -17,24 +17,25 @@ import warnings
 warnings.filterwarnings('ignore')
 import matplotlib.pyplot as plt
 
-img_WSI_dir = '/media/zzr/Data/skin_xml/original_new/RawImage/'
-fore_path = '/media/zzr/SW/Skin_xml/Patch/'
+img_WSI_dir = '/home/zzr/Desktop/'
+fore_path = '/media/zzr/Data/skin_xml/phase2/patch/'
 # Parameters
-nProcs = 4  # the number of process
-stride = 2048  # set stride 36
-using_level = 0  # 0: max level; 1
-patch_size = (2048, 2048)     # 144
+nProcs = 8  # the number of process
+stride = 36  # set stride 36
+using_level = 1  # 0: max level; 1
+patch_size = (144, 144)     # 144
 
 
-def get_bbox(cont_img, rgb_image=None):
+def get_bbox(cont_img, rgb_image=None, show=False):
     _, contours, _ = cv2.findContours(cont_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     rgb_contour = None
     if rgb_image is not None:
         rgb_contour = rgb_image.copy()
         line_color = (255, 0, 0)  # blue color code
         cv2.drawContours(rgb_contour, contours, -1, line_color, 1)
-        plt.imshow(rgb_contour)
-        plt.show()
+        if show:
+            plt.imshow(rgb_contour)
+            plt.show()
 
     bounding_boxes = [cv2.boundingRect(c) for c in contours]
     return bounding_boxes, rgb_contour
@@ -86,11 +87,11 @@ def find_roi_bbox(rgb_image):   # bgr
     image_open = cv2.morphologyEx(np.array(image_close), cv2.MORPH_OPEN, open_kernel)
     image_fill = hole_fill(image_open)
     image_fill = max_prop(image_fill)
-    bounding_boxes, rgb_contour = get_bbox(np.array(image_fill), rgb_image=rgb_image)
+    bounding_boxes, rgb_contour = get_bbox(np.array(image_fill), rgb_image=rgb_image, show=False)
     return bounding_boxes, rgb_contour, image_fill
 
 
-def find_roi_bbox_1(rgb_image):     # rgb
+def find_roi_bbox_1(rgb_image, show=False):     # rgb
     # hsv -> 3 channel
     hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
     # plt.imshow(hsv)
@@ -111,7 +112,7 @@ def find_roi_bbox_1(rgb_image):     # rgb
                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
     image_fill = hole_fill(image_open)
     image_fill = max_prop(image_fill)
-    bounding_boxes, rgb_contour = get_bbox(np.array(image_fill), rgb_image=rgb_image)
+    bounding_boxes, rgb_contour = get_bbox(np.array(image_fill), rgb_image, show)
     return bounding_boxes, rgb_contour, image_fill
 
 
@@ -156,10 +157,10 @@ def main():
     start = time.time()
     ProcessPointer = [None] * nProcs
     WSI = [i for i in os.listdir(img_WSI_dir) if i.endswith('ndpi')]
-    WSI = ['2018-08-09 15.33.04.ndpi']
+    # WSI = ['566827 - 2018-07-30 15.00.33.ndpi']
     for name1 in WSI:
         slide, downsample_image, level, m, n = read_image(os.path.join(img_WSI_dir, name1), stride)
-        bounding_boxes, rgb_contour, image_dilation = find_roi_bbox_1(downsample_image)
+        bounding_boxes, rgb_contour, image_dilation = find_roi_bbox_1(downsample_image, show=True)
         out_path = ''.join(name1.split('.')[0:-1])
         save_path = os.path.join(fore_path, out_path)  # if np.mean(img) < 0.9 else back_path
         if not os.path.exists(save_path):

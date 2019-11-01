@@ -11,13 +11,13 @@ function outputvolume = applystdnmap(inputvolume,standardization_map)
 if ~ismatrix(standardization_map)
     error('STANDARDIZATION_MAP should be a N x 2 matrix');
 end
-
+inputvolume(isnan(inputvolume)) = min(inputvolume(:));
 inputvolints = unique(inputvolume);
 outputvolume = inputvolume;
 for i=2:length(inputvolints)
     %loc = find(ceil(standardization_map(:,1))==inputvolints(i));
     %outputvolume(inputvolume==inputvolints(i)) = standardization_map(loc,2); %#ok<FNDSB>
-    outputvolume(inputvolume==inputvolints(i)) = standardization_map(ceil(inputvolints(i)),2); 
+    outputvolume(inputvolume==inputvolints(i)) = standardization_map(ceil(inputvolints(i)), 2); 
 end
 
 end

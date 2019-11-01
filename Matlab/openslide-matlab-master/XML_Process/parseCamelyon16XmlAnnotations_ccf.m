@@ -4,12 +4,15 @@ import javax.xml.xpath.*;
 factory = XPathFactory.newInstance();
 xpath = factory.newXPath();
 % XPath expressions used to parse the XML file
+%%
 % annotationExpr =xpath.compile('//Annotation');
-% PartOfGroup =xpath.compile('//Annotation/@Id');
-% annotations =annotationExpr.evaluate(xmlDocument, XPathConstants.NODESET)
+% PartOfGroup = xpath.compile('//Annotation/@Id');
+% annotations = annotationExpr.evaluate(xmlDocument, XPathConstants.NODESET);
 % for i_annotations=annotations.getLength():-1:1;
 %     a_current = annotations.item(i_annotations-1);
-%     k=PartOfGroup.evaluate(a_current, XPathConstants.NODESET);
+%     k = PartOfGroup.evaluate(a_current, XPathConstants.NODESET);
+% end
+%%
 RegionExpr = xpath.compile('//Region');
 PartOfGroup2=xpath.compile('//Region/@Id');
 xExpr = xpath.compile('.//Vertex/@X');

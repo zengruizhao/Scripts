@@ -1,16 +1,16 @@
 clear;clc;
 addpath(genpath('../../openslide-matlab-master'));
 addpath('./BOPointInPolygon')
-ImgPath= '/run/user/1000/gvfs/smb-share:server=darwin-mi.local,share=data/Skin/MF 皮研所 10张/20180627/';
-xmlPath= '/run/user/1000/gvfs/smb-share:server=darwin-mi.local,share=data/Skin/MF 皮研所 10张/2018-06-06 16.14.09修改标1/';
+ImgPath= '/run/user/1000/gvfs/smb-share:server=darwin-mi,share=data2/Skin/MF_10/Area Segmentation/';
+xmlPath= '/run/user/1000/gvfs/smb-share:server=darwin-mi,share=data2/Skin/MF_10/Area Segmentation/';
 xmlFile = dir([xmlPath,'*.xml']);
 openslide_load_library();
-for k=2%:length(xmlFile)
+for k=1:length(xmlFile)
     fprintf([xmlFile(k).name '...\n']);
     oneXml = [xmlPath,xmlFile(k).name];
+    annotation = getAnnotation(oneXml);
     c = parseCamelyon16XmlAnnotations_ccf(oneXml);
-%     WSI = [ImgPath,xmlFile(k).name(1:end-4),'.ndpi'];
-    WSI = [ImgPath '/2018-06-06 16.14.09.ndpi'];
+    WSI = [ImgPath,xmlFile(k).name(1:end-4),'.ndpi'];
     slide = openslide_open(WSI);
     [mppX, mppY, width, height, numberOfLevels, ...
     downsampleFactors, objectivePower] = openslide_get_slide_properties(slide);
